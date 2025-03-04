@@ -10,7 +10,8 @@ def main():
     # Initialize parser
     parser = VisionParser(
         vision_model=vision_model,
-        cache_dir="./.vision_cache",
+        cache_dir="./.vision_cache/gemini",
+        invalidate_cache=False, # change to True to invalidate cache
         prompt="""
         Extract from this technical document:
         1. Main topics and key points

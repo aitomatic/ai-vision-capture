@@ -1,16 +1,16 @@
-from vision_capture import VisionParser, OpenAIVisionModel
+from vision_capture import VisionParser, AnthropicVisionModel
 
 def main():
-    # Initialize OpenAI vision model (API key will be loaded from .env)
-    vision_model = OpenAIVisionModel(
-        model="gpt-4o",
+    # Initialize Anthropic vision model (API key will be loaded from .env)
+    vision_model = AnthropicVisionModel(
+        model="claude-3.7",
         temperature=0.2,
     )
 
     # Initialize parser
     parser = VisionParser(
         vision_model=vision_model,
-        cache_dir="./.vision_cache/openai",
+        cache_dir="./.vision_cache/anthropic",
         invalidate_cache=False, # change to True to invalidate cache
         prompt="""
         Extract from this technical document:
