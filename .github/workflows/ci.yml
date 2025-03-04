@@ -1,0 +1,75 @@
+name: Python CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "vision_capture/**"
+      - "tests/**"
+      - "poetry.lock"
+      - "pyproject.toml"
+      - ".github/workflows/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pypoetry
+          .venv
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}-python-3.10
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Install dependencies
+      run: |
+        poetry install --with dev
+
+    - name: Run formatters check
+      run: |
+        echo "🔍 Running Black formatter check..."
+        poetry run black -S . --check
+        echo "✅ Black formatter check completed"
+        
+        echo "🔍 Running isort check..."
+        poetry run isort . --check-only --diff
+        echo "✅ isort check completed"
+
+    - name: Run linters
+      run: |
+        echo "🔍 Running Flake8..."
+        poetry run flake8 vision_capture tests
+        echo "✅ Flake8 completed"
+        
+        echo "🔍 Running MyPy type checking..."
+        poetry run mypy vision_capture tests --show-error-codes --pretty
+        echo "✅ MyPy check completed"
+
+    - name: Run tests
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      run: |
+        poetry run pytest -v --cov=vision_capture --cov-report=term-missing 

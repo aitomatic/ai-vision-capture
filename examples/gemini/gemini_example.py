@@ -1,4 +1,5 @@
-from vision_capture import VisionParser, GeminiVisionModel
+from vision_capture import GeminiVisionModel, VisionParser
+
 
 def main():
     # Initialize Gemini vision model (API key will be loaded from .env)
@@ -11,7 +12,7 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/gemini",
-        invalidate_cache=False, # change to True to invalidate cache
+        invalidate_cache=False,  # change to True to invalidate cache
         prompt="""
         Extract from this technical document:
         1. Main topics and key points
@@ -19,19 +20,20 @@ def main():
         3. Important procedures
         4. Tables and data (in markdown)
         5. Diagrams and figures
-        """
+        """,
     )
 
     # Process a single PDF
     result = parser.process_pdf("examples/pdfs/sample.pdf")
-    
+
     # Save results
     # parser.save_output(result, "output.json")
     # parser.save_markdown_output(result, "output")
-    
+
     print(f"Document: {result['file_object']['file_name']}")
     print(f"Pages: {result['file_object']['total_pages']}")
     print(f"Words: {result['file_object']['total_words']}")
 
+
 if __name__ == "__main__":
-    main() 
+    main()

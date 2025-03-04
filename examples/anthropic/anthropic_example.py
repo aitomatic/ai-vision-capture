@@ -1,4 +1,5 @@
-from vision_capture import VisionParser, AnthropicVisionModel
+from vision_capture import AnthropicVisionModel, VisionParser
+
 
 def main():
     # Initialize Anthropic vision model (API key will be loaded from .env)
@@ -11,7 +12,7 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/anthropic",
-        invalidate_cache=False, # change to True to invalidate cache
+        invalidate_cache=False,  # change to True to invalidate cache
     )
 
     # Process a single PDF
@@ -21,10 +22,11 @@ def main():
     # you can save the result to a json file
     # parser.save_output(result, "output.json")
     # a markdown file is also saved automatically at tmp/md
-    
+
     print(f"Document: {result['file_object']['file_name']}")
     print(f"Pages: {result['file_object']['total_pages']}")
     print(f"Words: {result['file_object']['total_words']}")
 
+
 if __name__ == "__main__":
-    main() 
+    main()

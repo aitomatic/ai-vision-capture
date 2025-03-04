@@ -10,7 +10,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import fitz
+import fitz  # type: ignore
 from loguru import logger
 from PIL import Image
 
@@ -18,13 +18,15 @@ from vision_capture.cache import (
     FileCache,
     HashUtils,
     ImageCache,
+    S3Cache,
     TwoLayerCache,
 )
-from vision_capture.settings import MAX_CONCURRENT_TASKS, ImageQuality
-from vision_capture.vision_models import (
-    VisionModel,
-    create_default_vision_model,
+from vision_capture.settings import (
+    CLOUD_CACHE_BUCKET,
+    MAX_CONCURRENT_TASKS,
+    ImageQuality,
 )
+from vision_capture.vision_models import VisionModel, create_default_vision_model
 
 DEFAULT_PROMPT = """
     Extract the document content, following these guidelines:
@@ -122,8 +124,13 @@ class VisionParser:
         # Initialize caches with only local cache by default
         _file_cache = FileCache(cache_dir)
         _image_cache = ImageCache(cache_dir)
+        _s3_cache = (
+            S3Cache(bucket=CLOUD_CACHE_BUCKET, prefix="vision_parser")
+            if CLOUD_CACHE_BUCKET
+            else None
+        )
         self.cache = TwoLayerCache(
-            file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache
+            file_cache=_file_cache, s3_cache=_s3_cache, invalidate_cache=invalidate_cache  # type: ignore
         )
 
     def _validate_pdf(self, pdf_path: str) -> None:
@@ -344,10 +351,11 @@ class VisionParser:
 
     async def process_pdf_async(self, pdf_path: str) -> Dict:
         """Process a PDF file asynchronously and return structured content."""
-        try:
-            # Initial validation and setup
-            pdf_file, file_hash = await self._validate_and_setup(pdf_path)
 
+        # Initial validation and setup
+        pdf_file, file_hash = await self._validate_and_setup(pdf_path)
+
+        try:
             # Check cache unless invalidate_cache is True
             cached_result = await self.cache.get(file_hash)
             if cached_result:

@@ -1,12 +1,11 @@
 """Vision model interfaces and implementations."""
 
-
 from __future__ import annotations
 
 import base64
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union, cast
 
 import anthropic
 from loguru import logger
@@ -227,13 +226,13 @@ class AnthropicVisionModel(VisionModel):
     def client(self) -> anthropic.Client:
         if self._client is None:
             self._client = anthropic.Client(api_key=self.api_key)
-        return self._client
+        return cast(anthropic.Client, self._client)
 
     @property
     def aclient(self) -> anthropic.AsyncClient:
         if self._aclient is None:
             self._aclient = anthropic.AsyncClient(api_key=self.api_key)
-        return self._aclient
+        return cast(anthropic.AsyncClient, self._aclient)
 
     async def aprocess_image(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
@@ -271,7 +270,7 @@ class AnthropicVisionModel(VisionModel):
         }
         self.log_token_usage(usage)
 
-        return response.content[0].text
+        return str(response.content[0].text)
 
     def process_image(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
@@ -309,7 +308,7 @@ class AnthropicVisionModel(VisionModel):
         }
         self.log_token_usage(usage)
 
-        return response.content[0].text
+        return str(response.content[0].text)
 
 
 class OpenAIVisionModel(VisionModel):
@@ -337,13 +336,13 @@ class OpenAIVisionModel(VisionModel):
     def client(self) -> OpenAI:
         if self._client is None:
             self._client = OpenAI(api_key=self.api_key, base_url=self.api_base)
-        return self._client
+        return cast(OpenAI, self._client)
 
     @property
     def aclient(self) -> AsyncOpenAI:
         if self._aclient is None:
             self._aclient = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
-        return self._aclient
+        return cast(AsyncOpenAI, self._aclient)
 
     def _prepare_content(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str
@@ -469,7 +468,7 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
                 api_version=self.api_version,
                 azure_endpoint=AzureOpenAIVisionConfig.api_base,
             )
-        return self._client
+        return cast(AzureOpenAI, self._client)
 
     @property
     def aclient(self) -> AsyncAzureOpenAI:
@@ -479,4 +478,4 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
                 api_version=self.api_version,
                 azure_endpoint=AzureOpenAIVisionConfig.api_base,
             )
-        return self._aclient
+        return cast(AsyncAzureOpenAI, self._aclient)

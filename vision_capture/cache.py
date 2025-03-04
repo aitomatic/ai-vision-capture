@@ -4,7 +4,7 @@ import abc
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from loguru import logger
 from PIL import Image, ImageFile
@@ -115,7 +115,7 @@ class FileCache(CacheInterface):
             if cache_file.exists():
                 logger.info(f"Loading cached result from {cache_file}")
                 with open(cache_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    return cast(Dict[str, Any], json.load(f))
         except Exception as e:
             logger.warning(f"Error loading from cache: {str(e)}")
         return None
@@ -191,7 +191,7 @@ class S3Cache(AsyncCacheInterface):
                 logger.info(
                     f"Successfully loaded from S3: s3://{self.bucket}/{s3_path}"
                 )
-                return json.loads(data.decode("utf-8"))
+                return json.loads(data.decode("utf-8"))  # type: ignore
             logger.info(f"No data found in S3: s3://{self.bucket}/{s3_path}")
         except Exception as e:
             logger.error(f"Error loading from S3 cache: {e}")
@@ -235,14 +235,14 @@ class TwoLayerCache:
     def __init__(
         self,
         file_cache: FileCache,
-        s3_cache: S3Cache,
+        s3_cache: Optional[S3Cache],
         invalidate_cache: bool = False,
     ):
         """Initialize the two-layer cache.
 
         Args:
             file_cache: Local file cache instance
-            s3_cache: S3 cache instance
+            s3_cache: Optional S3 cache instance
             invalidate_cache: If True, bypass cache for reads
         """
         self.file_cache = file_cache
@@ -260,11 +260,11 @@ class TwoLayerCache:
             logger.info("Found result in file cache")
             return result
 
-        # Check S3 cache
+        # Check S3 cache if available
         if self.s3_cache:
             result = await self.s3_cache.aget(key)
             if result:
-            # Save to file cache for future use
+                # Save to file cache for future use
                 logger.info("Saving S3 result to file cache")
                 self.file_cache.set(key, result)
                 return result
@@ -278,7 +278,7 @@ class TwoLayerCache:
             logger.info("Saving to file cache")
             self.file_cache.set(key, value)
 
-            # Save to S3 and wait for completion
+            # Save to S3 if available
             if self.s3_cache:
                 logger.info("Saving to S3 cache")
                 await self.s3_cache.aset(key, value)
@@ -290,8 +290,9 @@ class TwoLayerCache:
         try:
             logger.info("Invalidating file cache")
             self.file_cache.invalidate(key)
-            logger.info("Invalidating S3 cache")
-            await self.s3_cache.ainvalidate(key)
+            if self.s3_cache:
+                logger.info("Invalidating S3 cache")
+                await self.s3_cache.ainvalidate(key)
         except Exception as e:
             logger.error(f"Error in cache invalidation: {e}")
 
@@ -300,8 +301,9 @@ class TwoLayerCache:
         try:
             logger.info("Clearing file cache")
             self.file_cache.clear()
-            logger.info("Clearing S3 cache")
-            await self.s3_cache.aclear()
+            if self.s3_cache:
+                logger.info("Clearing S3 cache")
+                await self.s3_cache.aclear()
         except Exception as e:
             logger.error(f"Error in cache clear operation: {e}")
 
@@ -459,7 +461,9 @@ class ImageCache:
 
                 # Upload to S3
                 s3_key = f"{s3_prefix}/p{i}.png"
-                await upload_file_to_s3_async(CLOUD_CACHE_BUCKET, str(local_path), s3_key)
+                await upload_file_to_s3_async(
+                    CLOUD_CACHE_BUCKET, str(local_path), s3_key
+                )
 
             logger.info(f"Cached {len(images)} images for {file_hash}")
 
