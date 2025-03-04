@@ -13,7 +13,6 @@ A powerful Python library for extracting and analyzing content from PDF document
 - 🎨 **Image Quality Control**: Configurable image quality settings
 - 📊 **Structured Output**: Well-organized JSON and Markdown output
 
-
 ## Quick Start
 
 ```python
@@ -33,25 +32,17 @@ async def process_folder():
 
 ## Configuration
 
-The library can be configured through environment variables:
+The library is configured through environment variables that can be set in your shell or via a `.env` file.
 
+1. Copy `.env.template` to `.env`
+2. Choose ONE vision provider:
 ```env
-# Vision Model Selection
-USE_VISION=openai  # Options: openai, claude, gemini, azure-openai
-
-# API Keys
-OPENAI_API_KEY=your_key
-ANTHROPIC_API_KEY=your_key
-GEMINI_API_KEY=your_key
-AZURE_OPENAI_API_KEY=your_key
-
-# Cache Settings
-DXA_DATA_BUCKET=your_s3_bucket_name
-
-# Performance Settings
-MAX_CONCURRENT_TASKS=5
-VISION_PARSER_DPI=333
+USE_VISION=claude  # Options: openai, claude, gemini, azure-openai
 ```
+3. Configure your chosen provider's API key and settings
+4. Adjust common settings if needed (DPI, concurrency, etc.)
+
+See `.env.template` for detailed configuration options and examples.
 
 ## Output Format
 
@@ -82,7 +73,7 @@ from vision_capture import VisionParser, GeminiVisionModel
 
 # Configure Gemini vision model with custom settings
 vision_model = GeminiVisionModel(
-    model="gemini-pro-vision",
+    model="gemini-2.0-flash",
     api_key="your_gemini_api_key"
 )
 
