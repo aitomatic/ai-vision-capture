@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aicapture"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Python module to extract content from PDF documents using Vision Language Models (VLMs)"
 authors = ["Aitomatic"]
 readme = "README.md"
