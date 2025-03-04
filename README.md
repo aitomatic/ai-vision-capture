@@ -77,36 +77,34 @@ The library produces structured output in both JSON and Markdown formats:
 
 ## Advanced Usage
 
-### Custom Vision Models
-
 ```python
-from vision_capture import VisionParser, OpenAIVisionModel
+from vision_capture import VisionParser, GeminiVisionModel
 
-# Configure custom vision model
-vision_model = OpenAIVisionModel(
-    model="gpt-4o-mini",
-    api_key="your_key"
+# Configure Gemini vision model with custom settings
+vision_model = GeminiVisionModel(
+    model="gemini-pro-vision",
+    api_key="your_gemini_api_key"
 )
 
-# Initialize parser with custom model
+# Initialize parser with custom configuration
 parser = VisionParser(
     vision_model=vision_model,
+    dpi=400,
     image_quality="high",
-    invalidate_cache=False
-)
-```
-
-### Custom Prompts
-
-```python
-# Initialize parser with custom prompt
-parser = VisionParser(
     prompt="""
-    Extract the following information:
-    1. Key technical specifications
-    2. Important measurements
-    3. Critical warnings
+    Please analyze this technical document and extract:
+    1. Equipment specifications and model numbers
+    2. Operating parameters and limits
+    3. Maintenance requirements
+    4. Safety protocols
+    5. Quality control metrics
     """
+)
+
+# Process PDF with custom settings
+result = parser.process_pdf(
+    pdf_path="path/to/document.pdf",
+    cache_enabled=True
 )
 ```
 
