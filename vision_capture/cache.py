@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 from loguru import logger
 from PIL import Image, ImageFile
 
-from vision_capture.settings import DXA_DATA_BUCKET
-from vision_capture.utils.s3_utils import (
+from vision_capture.settings import CLOUD_CACHE_BUCKET
+from vision_capture.utils import (
     delete_file_from_s3_async,
     get_file_from_s3_async,
     get_s3_client,
@@ -406,7 +406,7 @@ class ImageCache:
 
             # List objects in S3 folder
             response = s3_client.list_objects_v2(
-                Bucket=DXA_DATA_BUCKET, Prefix=s3_prefix
+                Bucket=CLOUD_CACHE_BUCKET, Prefix=s3_prefix
             )
 
             if response.get("KeyCount", 0) == expected_pages:
@@ -422,7 +422,7 @@ class ImageCache:
                     local_path = local_cache_path / f"p{i}.png"
 
                     # Download from S3
-                    s3_client.download_file(DXA_DATA_BUCKET, s3_key, str(local_path))
+                    s3_client.download_file(CLOUD_CACHE_BUCKET, s3_key, str(local_path))
 
                     # Load image
                     s3_images.append(Image.open(local_path))
@@ -457,7 +457,7 @@ class ImageCache:
 
                 # Upload to S3
                 s3_key = f"{s3_prefix}/p{i}.png"
-                await upload_file_to_s3_async(DXA_DATA_BUCKET, str(local_path), s3_key)
+                await upload_file_to_s3_async(CLOUD_CACHE_BUCKET, str(local_path), s3_key)
 
             logger.info(f"Cached {len(images)} images for {file_hash}")
 

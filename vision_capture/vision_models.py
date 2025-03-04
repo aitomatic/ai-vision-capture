@@ -1,6 +1,5 @@
 """Vision model interfaces and implementations."""
 
-# TODO: add timeout for request
 
 from __future__ import annotations
 
@@ -22,20 +21,20 @@ from vision_capture.settings import (
     GeminiVisionConfig,
     ImageQuality,
     OpenAIVisionConfig,
-    VisionModelType,
+    VisionModelProvider,
 )
 
 
 def create_default_vision_model() -> VisionModel:
     """Create a vision model instance based on environment configuration."""
     logger.info(f"Using vision model from provider: {USE_VISION}")
-    if USE_VISION == VisionModelType.claude:
+    if USE_VISION == VisionModelProvider.claude:
         return AnthropicVisionModel()
-    elif USE_VISION == VisionModelType.openai:
+    elif USE_VISION == VisionModelProvider.openai:
         return OpenAIVisionModel()
-    elif USE_VISION == VisionModelType.gemini:
+    elif USE_VISION == VisionModelProvider.gemini:
         return GeminiVisionModel()
-    elif USE_VISION == VisionModelType.azure_openai:
+    elif USE_VISION == VisionModelProvider.azure_openai:
         return AzureOpenAIVisionModel()
     else:
         raise ValueError(f"Unsupported vision model type: {USE_VISION}")

@@ -6,7 +6,6 @@ import json
 import os
 import time
 from asyncio import Semaphore
-from functools import wraps
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -19,10 +18,9 @@ from vision_capture.cache import (
     FileCache,
     HashUtils,
     ImageCache,
-    S3Cache,
     TwoLayerCache,
 )
-from vision_capture.settings import MAX_CONCURRENT_TASKS, ImageQuality, DXA_DATA_BUCKET
+from vision_capture.settings import MAX_CONCURRENT_TASKS, ImageQuality
 from vision_capture.vision_models import (
     VisionModel,
     create_default_vision_model,
@@ -103,7 +101,7 @@ class VisionParser:
 
         Args:
             vision_model (Optional[VisionModel]): Vision model instance to use.
-                If None, creates default model based on environment settings.
+            If None, creates default model based on environment settings.
             cache_dir (Optional[str]): Directory to store cached results
             max_concurrent_tasks (int): maximum concurrent API calls
             image_quality (str): Image quality setting (low/high)
@@ -116,20 +114,17 @@ class VisionParser:
         self.invalidate_cache = invalidate_cache
         self.invalidate_image_cache = invalidate_image_cache
         self.prompt = prompt
-        self.dpi = int(os.getenv("VISION_PARSER_DPI", "345"))
+        self.dpi = int(os.getenv("VISION_PARSER_DPI", "333"))
 
         if max_concurrent_tasks is not None:
             self.__class__._semaphore = Semaphore(max_concurrent_tasks)
 
-        # Initialize caches
-        file_cache = FileCache(cache_dir)
-        s3_cache = S3Cache(
-            bucket=DXA_DATA_BUCKET, prefix="production/images/cache-service"
-        )
+        # Initialize caches with only local cache by default
+        _file_cache = FileCache(cache_dir)
+        _image_cache = ImageCache(cache_dir)
         self.cache = TwoLayerCache(
-            file_cache=file_cache, s3_cache=s3_cache, invalidate_cache=invalidate_cache
+            file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache
         )
-        self.image_cache = ImageCache(cache_dir)
 
     def _validate_pdf(self, pdf_path: str) -> None:
         """
@@ -143,15 +138,6 @@ class VisionParser:
         """
         if not str(pdf_path).lower().endswith(".pdf"):
             raise PDFValidationError("File must have a .pdf extension")
-
-    @staticmethod
-    def calculate_file_hash(file_path: str) -> str:
-        """Calculate SHA-256 hash of a file."""
-        sha256 = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                sha256.update(chunk)
-        return sha256.hexdigest()
 
     def _extract_text_from_pdf(self, pdf_path: str) -> List[str]:
         """Extract text content from PDF using PyMuPDF."""
@@ -396,7 +382,6 @@ class VisionParser:
             logger.debug(f"PDF converted to {len(images)} images")
 
             # Cache the images if not invalidating image cache
-            # Disable for now
             # if not self.invalidate_image_cache:
             #     logger.info(f"Caching {len(images)} images for {file_hash}")
             #     await self.image_cache.cache_images(images, file_hash)
@@ -466,7 +451,6 @@ class VisionParser:
         except Exception as e:
             logger.error(f"Error saving output: {str(e)}")
 
-    @timeit_async
     async def process_folder_async(self, folder_path: str) -> List[Dict]:
         """Process all PDF files in a folder asynchronously."""
         results = []
@@ -475,32 +459,3 @@ class VisionParser:
                 result = await self.process_pdf_async(os.path.join(folder_path, file))
                 results.append(result)
         return results
-
-
-@timeit_async
-async def main_async() -> None:
-    """Example usage of the VisionParser with async interface."""
-    try:
-        # Initialize parser with default vision model from environment
-        parser = VisionParser(
-            invalidate_cache=True,
-            invalidate_image_cache=True,
-            # prompt="You are an expert electrical engineer. The uploaded image is a logical diagram that processes input signals (sensors) on the left-hand side and produces an output result on the right-hand side. There is an alarm in the diagram. Identify all possible input signals (dependencies) that contribute to triggering this alarm. Provide the exact sensor names and any relevant identifiers (e.g., TAG, RF LOGICA) for each dependency",
-        )
-        folder = "tmp/sample"
-        # folder = "tmp/terna"
-        # folder = "tmp/extreme"
-        results = await parser.process_folder_async(folder)
-        for result in results:
-            parser.save_output(
-                result, f"tmp/extreme/output/{result['file_object']['file_name']}.json"
-            )
-        logger.info(f"Processing complete. Total results: {len(results)}")
-
-    except Exception as e:
-        logger.error(f"Error in main_async: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    asyncio.run(main_async())

@@ -4,20 +4,15 @@ A powerful Python library for extracting and analyzing content from PDF document
 
 ## Features
 
-- 🔍 **Multi-Provider Support**: Compatible with major VLM providers (OpenAI, Claude, Gemini, Azure)
+- 🔍 **Multi-Provider Support**: Compatible with major VLM providers (OpenAI, Claude, Gemini, Azure, OpenSource models)
 - 📄 **PDF Processing**: Efficient PDF to image conversion with configurable DPI
 - 🚀 **Async Processing**: Asynchronous processing with configurable concurrency
-- 💾 **Two-Layer Caching**: Local file system and S3 caching for improved performance
+- 💾 **Two-Layer Caching**: Local file system and cloud caching for improved performance
 - 🔄 **Batch Processing**: Process multiple PDFs in parallel
 - 📝 **Text Extraction**: Enhanced accuracy through combined OCR and VLM processing
 - 🎨 **Image Quality Control**: Configurable image quality settings
 - 📊 **Structured Output**: Well-organized JSON and Markdown output
 
-## Installation
-
-```bash
-pip install ai-vision-capture
-```
 
 ## Quick Start
 
@@ -55,7 +50,7 @@ DXA_DATA_BUCKET=your_s3_bucket_name
 
 # Performance Settings
 MAX_CONCURRENT_TASKS=5
-VISION_PARSER_DPI=345
+VISION_PARSER_DPI=333
 ```
 
 ## Output Format
@@ -89,7 +84,7 @@ from vision_capture import VisionParser, OpenAIVisionModel
 
 # Configure custom vision model
 vision_model = OpenAIVisionModel(
-    model="gpt-4-vision-preview",
+    model="gpt-4o-mini",
     api_key="your_key"
 )
 
@@ -117,8 +112,16 @@ parser = VisionParser(
 
 ## Contributing
 
---
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+For detailed guidelines, see our [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
---
+Copyright 2024 Aitomatic, Inc.
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.

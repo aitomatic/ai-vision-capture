@@ -10,10 +10,8 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# S3 bucket configuration
-DXA_DATA_BUCKET = os.getenv("DXA_DATA_BUCKET", "your-bucket-name")
 
-class VisionModelType:
+class VisionModelProvider:
     claude = "claude"
     openai = "openai"
     azure_openai = "azure-openai"
@@ -22,9 +20,11 @@ class VisionModelType:
 
 
 # Default vision model configuration
-USE_VISION = os.getenv("USE_VISION", VisionModelType.openai).lower()
+USE_VISION = os.getenv("USE_VISION", VisionModelProvider.openai).lower()
 
 MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "5"))
+
+CLOUD_CACHE_BUCKET = os.getenv("CLOUD_CACHE_BUCKET", "your-bucket-name")
 
 
 # Image quality settings
@@ -37,7 +37,7 @@ class ImageQuality:
 
 
 @dataclass
-class VisionModelName:
+class VisionModelConfig:
     """Base configuration for vision models."""
 
     model: str
@@ -46,14 +46,14 @@ class VisionModelName:
     image_quality: str = ImageQuality.DEFAULT
 
 
-class AnthropicVisionConfig(VisionModelName):
+class AnthropicVisionConfig(VisionModelConfig):
     """Configuration for Anthropic Claude Vision models."""
 
     api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
 
 
-class OpenAIVisionConfig(VisionModelName):
+class OpenAIVisionConfig(VisionModelConfig):
     """Configuration for OpenAI GPT-4 Vision models."""
 
     api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -63,14 +63,14 @@ class OpenAIVisionConfig(VisionModelName):
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
 
 
-class GeminiVisionConfig(VisionModelName):
+class GeminiVisionConfig(VisionModelConfig):
     """Configuration for Google Gemini Vision models."""
 
     api_key: str = os.getenv("GEMINI_API_KEY", "dummy")
     model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 
-class AzureOpenAIVisionConfig(VisionModelName):
+class AzureOpenAIVisionConfig(VisionModelConfig):
     """Configuration for Azure OpenAI Vision models."""
 
     api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "dummy")
