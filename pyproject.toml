@@ -1,10 +1,12 @@
 [tool.poetry]
-name = "ai-vision-capture"
+name = "aicapture"
 version = "0.1.0"
 description = "A Python module to extract content from PDF documents using Vision Language Models (VLMs)"
 authors = ["Aitomatic"]
 readme = "README.md"
-packages = [{include = "vision_capture"}]
+packages = [
+    {include = "vision_capture"},
+]
 license = "MIT"
 homepage = "https://github.com/Aitomatic/ai-vision-capture"
 repository = "https://github.com/Aitomatic/ai-vision-capture"
