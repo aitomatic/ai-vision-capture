@@ -12,7 +12,7 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/anthropic",
-        invalidate_cache=False,  # change to True to invalidate cache
+        invalidate_cache=True,  # change to True to invalidate cache
     )
 
     # Process a single PDF

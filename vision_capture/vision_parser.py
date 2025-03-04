@@ -18,7 +18,6 @@ from vision_capture.cache import (
     FileCache,
     HashUtils,
     ImageCache,
-    S3Cache,
     TwoLayerCache,
 )
 from vision_capture.settings import (
@@ -81,7 +80,7 @@ class VisionParser:
     - Multiple image processing
     - High-quality image support
     - Configurable concurrency
-    - Result caching (local + S3)
+    - Result caching
     - Text extraction for improved accuracy
     """
 
@@ -124,13 +123,8 @@ class VisionParser:
         # Initialize caches with only local cache by default
         _file_cache = FileCache(cache_dir)
         _image_cache = ImageCache(cache_dir)
-        _s3_cache = (
-            S3Cache(bucket=CLOUD_CACHE_BUCKET, prefix="vision_parser")
-            if CLOUD_CACHE_BUCKET
-            else None
-        )
         self.cache = TwoLayerCache(
-            file_cache=_file_cache, s3_cache=_s3_cache, invalidate_cache=invalidate_cache  # type: ignore
+            file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache  # type: ignore
         )
 
     def _validate_pdf(self, pdf_path: str) -> None:
@@ -416,7 +410,6 @@ class VisionParser:
                 pdf_file, file_hash, all_pages, total_words, len(images)
             )
 
-            # Cache the results and wait for S3 upload to complete
             logger.info("Saving results to cache")
             await self.cache.set(file_hash, result)
 
