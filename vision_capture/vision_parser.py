@@ -354,7 +354,6 @@ class VisionParser:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)
                 return cached_result
-
             # Load any partial results
             partial_results = await self._load_partial_results(file_hash)
             logger.info(f"Found {len(partial_results)} cached pages")

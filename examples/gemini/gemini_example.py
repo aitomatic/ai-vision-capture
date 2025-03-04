@@ -1,5 +1,4 @@
 from vision_capture import VisionParser, GeminiVisionModel
-from vision_capture.settings import ImageQuality
 
 def main():
     # Initialize Gemini vision model (API key will be loaded from .env)
@@ -11,8 +10,7 @@ def main():
     # Initialize parser
     parser = VisionParser(
         vision_model=vision_model,
-        image_quality=ImageQuality.HIGH,
-        cache_dir="./cache",
+        cache_dir="./.vision_cache",
         prompt="""
         Extract from this technical document:
         1. Main topics and key points
@@ -24,11 +22,11 @@ def main():
     )
 
     # Process a single PDF
-    result = parser.process_pdf("path/to/your/document.pdf")
+    result = parser.process_pdf("examples/pdfs/sample.pdf")
     
     # Save results
-    parser.save_output(result, "output.json")
-    parser.save_markdown_output(result, "output")
+    # parser.save_output(result, "output.json")
+    # parser.save_markdown_output(result, "output")
     
     print(f"Document: {result['file_object']['file_name']}")
     print(f"Pages: {result['file_object']['total_pages']}")

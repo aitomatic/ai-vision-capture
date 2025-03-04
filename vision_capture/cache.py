@@ -261,12 +261,13 @@ class TwoLayerCache:
             return result
 
         # Check S3 cache
-        result = await self.s3_cache.aget(key)
-        if result:
+        if self.s3_cache:
+            result = await self.s3_cache.aget(key)
+            if result:
             # Save to file cache for future use
-            logger.info("Saving S3 result to file cache")
-            self.file_cache.set(key, result)
-            return result
+                logger.info("Saving S3 result to file cache")
+                self.file_cache.set(key, result)
+                return result
 
         return None
 
@@ -278,8 +279,9 @@ class TwoLayerCache:
             self.file_cache.set(key, value)
 
             # Save to S3 and wait for completion
-            logger.info("Saving to S3 cache")
-            await self.s3_cache.aset(key, value)
+            if self.s3_cache:
+                logger.info("Saving to S3 cache")
+                await self.s3_cache.aset(key, value)
         except Exception as e:
             logger.error(f"Error in cache set operation: {e}")
 

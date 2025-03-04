@@ -7,7 +7,7 @@ from vision_capture.vision_models import (
     VisionModel,
     OpenAIVisionModel,
     GeminiVisionModel,
-    ClaudeVisionModel,
+    AnthropicVisionModel,
     AzureOpenAIVisionModel,
 )
 from vision_capture.settings import ImageQuality
@@ -25,7 +25,7 @@ __all__ = [
     "VisionModel",
     "OpenAIVisionModel",
     "GeminiVisionModel",
-    "ClaudeVisionModel",
+    "AnthropicVisionModel",
     "AzureOpenAIVisionModel",
     
     # Settings
