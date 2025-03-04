@@ -7,18 +7,24 @@ Vision Parser is a Python module designed to extract content (text, tables, and 
 
 ### Core Dependencies
 - Python 3.10+
-- pdf2image: For PDF to image conversion
+- PyMuPDF (fitz): For PDF processing and image conversion
+- PIL (Pillow): For image handling
 - Vision Language Models (Choose one):
-  - OpenAI GPT-4o
-  - Anthropic Claude 3.5
+  - OpenAI Vision
+  - Anthropic Claude
   - Google Gemini Vision
+  - Azure OpenAI Vision
+  - OpenAI-compatible API providers
 
 ### Key Features
 - PDF processing and metadata extraction
-- PDF to image conversion
+- PDF to image conversion with PyMuPDF
 - Page-by-page content extraction
 - Structured JSON output
 - Support for multiple VLM providers
+- Local and S3-based caching
+- Token usage tracking
+- Configurable image quality
 
 ## Architecture
 
@@ -26,19 +32,24 @@ Vision Parser is a Python module designed to extract content (text, tables, and 
 1. PDF Input Processing
    - Read PDF from input folder
    - Extract file metadata (name, hash, page count)
+   - Extract text content for reference
    
 2. Image Conversion
-   - Convert PDF pages to images
-   - Process image metadata
+   - Convert PDF pages to images using PyMuPDF
+   - Configure DPI and quality settings
+   - Optional image caching
 
 3. Content Extraction
    - Send each page image to VLM
    - Process VLM response
    - Extract text and identify visual elements
+   - Track token usage
 
 4. Output Generation
    - Combine all page contents
    - Generate structured JSON output
+   - Optional: Generate markdown output
+   - Cache results (local/S3)
 
 ### Output Schema
 ```json
@@ -70,11 +81,20 @@ Vision Parser is a Python module designed to extract content (text, tables, and 
 
 ### PDF to Image Conversion
 ```python
-from pdf2image import convert_from_path
+import fitz
+from PIL import Image
 
-def convert_pdf_to_images(pdf_path: str) -> list:
-    """Convert PDF file to list of images."""
-    return convert_from_path(pdf_path)
+def convert_pdf_to_images(pdf_path: str, dpi: int = 333) -> list:
+    """Convert PDF file to list of images using PyMuPDF."""
+    images = []
+    with fitz.open(pdf_path) as doc:
+        for page in doc:
+            zoom = dpi / 72  # Convert DPI to zoom factor
+            matrix = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=matrix)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            images.append(img)
+    return images
 ```
 
 ### File Hash Calculation
@@ -121,7 +141,7 @@ def process_with_claude(image, client: anthropic.Client) -> dict:
     return response.content[0].text
 ```
 
-#### OpenAI GPT-4o
+#### OpenAI GPT-4 Vision
 ```python
 from openai import OpenAI
 
@@ -137,51 +157,14 @@ def process_with_gpt4o(image_path: str, client: OpenAI) -> dict:
                 {"type": "text", "text": "Extract the content with full detail"},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}",
+                        "detail": "high"
+                    }
                 }
             ]
         }]
     )
     return response.choices[0].message.content
 ```
-
-## Getting Started
-
-1. Install Dependencies
-   ```bash
-   pip install pdf2image anthropic openai pillow
-   ```
-
-2. Configure Environment
-   - Set up API keys for chosen VLM provider
-   - Ensure poppler is installed for pdf2image
-
-3. Basic Usage
-   ```python
-   from vision_parser import VisionParser
-   
-   parser = VisionParser(model="claude")  # or "gpt4o"
-   result = parser.process_pdf("path/to/document.pdf")
-   ```
-
-## Best Practices
-- Handle large PDFs in chunks to manage memory
-- Implement proper error handling for API calls
-- Cache processed results to avoid redundant processing
-- Validate input PDFs before processing
-- Monitor API usage and costs
-
-## Error Handling
-- Implement retries for API failures
-- Validate PDF file integrity
-- Handle corrupt images
-- Manage API rate limits
-
-## Future Improvements
-- Support for more VLM providers
-- Batch processing capabilities
-- Custom prompt templates
-- Enhanced error recovery
-- Progress tracking and logging
-
 
