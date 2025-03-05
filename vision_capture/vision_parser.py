@@ -14,14 +14,8 @@ import fitz  # type: ignore
 from loguru import logger
 from PIL import Image
 
-from vision_capture.cache import (
-    FileCache,
-    HashUtils,
-    ImageCache,
-    TwoLayerCache,
-)
+from vision_capture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
 from vision_capture.settings import (
-    CLOUD_CACHE_BUCKET,
     MAX_CONCURRENT_TASKS,
     ImageQuality,
 )

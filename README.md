@@ -15,6 +15,13 @@ A powerful Python library for extracting and analyzing content from PDF document
 
 ## Quick Start
 
+Install the library:
+
+```bash
+pip install aicapture
+```
+
+
 ```python
 from vision_capture import VisionParser
 
