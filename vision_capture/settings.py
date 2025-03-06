@@ -78,4 +78,4 @@ class AzureOpenAIVisionConfig(VisionModelConfig):
     api_base: str = os.getenv(
         "AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com"
     )
-    api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2025-02-15-preview")
+    api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-11-01-preview")

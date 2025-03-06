@@ -377,6 +377,7 @@ class OpenAIVisionModel(VisionModel):
             "role": "user",
             "content": content,  # type: ignore
         }
+
         response = await self.aclient.chat.completions.create(
             model=self.model,
             messages=[message],
@@ -478,4 +479,5 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
                 api_version=self.api_version,
                 azure_endpoint=AzureOpenAIVisionConfig.api_base,
             )
+
         return cast(AsyncAzureOpenAI, self._aclient)
