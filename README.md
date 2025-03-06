@@ -13,6 +13,12 @@ A powerful Python library for extracting and analyzing content from PDF document
 - 🎨 **Image Quality Control**: Configurable image quality settings
 - 📊 **Structured Output**: Well-organized JSON and Markdown output
 
+## Coming Soon Features
+
+- 🔗 **Cross-Document Knowledge Capture**: Capture structured knowledge across multiple documents
+
+- 🎥 **Video Knowledge Capture**: Capture structured knowledge from video
+
 ## Quick Start
 
 Install the library:
@@ -88,7 +94,6 @@ vision_model = GeminiVisionModel(
 parser = VisionParser(
     vision_model=vision_model,
     dpi=400,
-    image_quality="high",
     prompt="""
     Please analyze this technical document and extract:
     1. Equipment specifications and model numbers
@@ -102,16 +107,17 @@ parser = VisionParser(
 # Process PDF with custom settings
 result = parser.process_pdf(
     pdf_path="path/to/document.pdf",
-    cache_enabled=True
 )
 ```
+
+
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your feature branch (`git checkout -b feature/tiny-but-mighty`)
+3. Commit your changes (`git commit -m 'feat: add small but delightful improvement'`)
+4. Push to the branch (`git push origin feature/tiny-but-mighty`)
 5. Open a Pull Request
 
 For detailed guidelines, see our [Contributing Guide](CONTRIBUTING.md).
