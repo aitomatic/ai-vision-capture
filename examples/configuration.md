@@ -11,24 +11,22 @@ Choose ONE of the following providers:
 # OpenAI
 export USE_VISION=openai
 export OPENAI_API_KEY=your_openai_key
-export OPENAI_VISION_MODEL=gpt-4o  # Optional, default: gpt-4o
-export OPENAI_MAX_TOKENS=8000      # Optional
-export OPENAI_TEMPERATURE=0.0      # Optional
+export OPENAI_VISION_MODEL=gpt-4o
 
 # Anthropic Claude
 export USE_VISION=claude
 export ANTHROPIC_API_KEY=your_anthropic_key
-export ANTHROPIC_MODEL=claude-3-5-sonnet-20241022  # Optional
+export ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 
 # Google Gemini
 export USE_VISION=gemini
 export GEMINI_API_KEY=your_gemini_key
-export GEMINI_MODEL=gemini-2.0-flash  # Optional
+export GEMINI_MODEL=gemini-2.0-flash
 
 # Azure OpenAI
 export USE_VISION=azure-openai
 export AZURE_OPENAI_API_KEY=your_azure_key
-export AZURE_OPENAI_MODEL=gpt-4o  # Optional
+export AZURE_OPENAI_MODEL=gpt-4o
 export AZURE_OPENAI_API_URL=https://xxx.openai.azure.com
 export AZURE_OPENAI_API_VERSION=2025-02-15-preview
 ```
@@ -36,8 +34,8 @@ export AZURE_OPENAI_API_VERSION=2025-02-15-preview
 ### Performance Settings
 ```bash
 # Concurrent Processing
-export MAX_CONCURRENT_TASKS=5  # Default: 2
-export VISION_PARSER_DPI=333  # Default: 200
+export MAX_CONCURRENT_TASKS=5
+export VISION_PARSER_DPI=333
 ```
 
 ## Development Setup
