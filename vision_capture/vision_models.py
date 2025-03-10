@@ -21,27 +21,39 @@ from vision_capture.settings import (
     ImageQuality,
     OpenAIVisionConfig,
     VisionModelProvider,
+    mask_sensitive_string,
 )
 
 
 def create_default_vision_model() -> VisionModel:
     """Create a vision model instance based on environment configuration."""
-    logger.info(f"Using vision model from provider: {USE_VISION}")
-    if USE_VISION == VisionModelProvider.claude:
-        return AnthropicVisionModel()
-    elif USE_VISION == VisionModelProvider.openai:
-        return OpenAIVisionModel()
-    elif USE_VISION == VisionModelProvider.gemini:
-        return GeminiVisionModel()
-    elif USE_VISION == VisionModelProvider.azure_openai:
-        return AzureOpenAIVisionModel()
-    else:
-        raise ValueError(f"Unsupported vision model type: {USE_VISION}")
+    logger.info(f"Creating vision model for provider: {USE_VISION}")
+    try:
+        if USE_VISION == VisionModelProvider.claude:
+            return AnthropicVisionModel()
+        elif USE_VISION == VisionModelProvider.openai:
+            return OpenAIVisionModel()
+        elif USE_VISION == VisionModelProvider.gemini:
+            return GeminiVisionModel()
+        elif USE_VISION == VisionModelProvider.azure_openai:
+            return AzureOpenAIVisionModel()
+        else:
+            error_msg = f"Unsupported vision model type: {USE_VISION}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+    except Exception as e:
+        logger.error(f"Failed to create vision model: {str(e)}")
+        raise
 
 
 def is_vision_model_installed() -> bool:
     """Check if a vision model is installed."""
-    return USE_VISION in ["claude", "openai", "gemini", "azure-openai"]
+    return USE_VISION in [
+        VisionModelProvider.claude,
+        VisionModelProvider.openai,
+        VisionModelProvider.gemini,
+        VisionModelProvider.azure_openai,
+    ]
 
 
 class VisionModel(ABC):
@@ -64,10 +76,24 @@ class VisionModel(ABC):
         self._kwargs = kwargs
         self.last_token_usage: Dict[str, int] = {}
 
+        # Log API credentials
+        logger.debug(
+            f"Using {self.__class__.__name__}\n"
+            f"API Key: {mask_sensitive_string(self.api_key)}\n"
+            f"API Base: {self.api_base}"
+        )
+
+        if not self.api_key:
+            logger.error("API key is required")
+            raise ValueError("API key is required")
+        if not self.api_base:
+            logger.error("API base is required")
+            raise ValueError("API base is required")
+
     def log_token_usage(self, usage_data: Dict[str, int]) -> None:
         """Log token usage statistics."""
         self.last_token_usage = usage_data
-        logger.info(f"Token usage for {self.model}: {usage_data}")
+        logger.info(f"Token usage: {usage_data}")
 
     @staticmethod
     def convert_image_to_base64(image: Image.Image) -> Tuple[str, str]:
@@ -467,7 +493,7 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
             self._client = AzureOpenAI(
                 api_key=self.api_key,
                 api_version=self.api_version,
-                azure_endpoint=AzureOpenAIVisionConfig.api_base,
+                azure_endpoint=self.api_base,  # type: ignore
             )
         return cast(AzureOpenAI, self._client)
 
@@ -477,7 +503,7 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
             self._aclient = AsyncAzureOpenAI(
                 api_key=self.api_key,
                 api_version=self.api_version,
-                azure_endpoint=AzureOpenAIVisionConfig.api_base,
+                azure_endpoint=self.api_base,  # type: ignore
             )
 
         return cast(AsyncAzureOpenAI, self._aclient)

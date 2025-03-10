@@ -21,41 +21,61 @@ A powerful Python library for extracting and analyzing content from PDF document
 
 ## Quick Start
 
-Install the library:
+### Installation
 
 ```bash
 pip install aicapture
 ```
 
+### Basic Setup
 
+1. Set your chosen provider and API key (example using OpenAI):
+```bash
+export USE_VISION=openai
+export OPENAI_API_KEY=your_openai_key
+```
+
+2. Use in your code:
 ```python
 from vision_capture import VisionParser
 
 # Initialize parser
 parser = VisionParser()
 
-# Process a single PDF
+# Process a PDF
 result = parser.process_pdf("path/to/your/document.pdf")
 
-# Process a folder of PDFs asynchronously
+# Process multiple PDFs asynchronously
 async def process_folder():
     results = await parser.process_folder_async("path/to/folder")
     return results
 ```
 
+For detailed configuration options and examples, see:
+- [Configuration Guide](examples/configuration.md)
+- [Advanced Usage Examples](examples/configuration.md#advanced-configuration-examples)
+
 ## Configuration
 
-The library is configured through environment variables that can be set in your shell or via a `.env` file.
+### Production Environment
+In production, configure the library using environment variables in your shell or deployment environment.
 
-1. Copy `.env.template` to `.env`
-2. Choose ONE vision provider:
-```env
-USE_VISION=claude  # Options: openai, claude, gemini, azure-openai
+Common settings you may want to adjust:
+```bash
+# Optional performance settings
+export MAX_CONCURRENT_TASKS=5      # Number of concurrent processing tasks
+export VISION_PARSER_DPI=333      # Image DPI for PDF processing
 ```
-3. Configure your chosen provider's API key and settings
-4. Adjust common settings if needed (DPI, concurrency, etc.)
 
-See `.env.template` for detailed configuration options and examples.
+### Development Environment
+For local development:
+
+1. Clone the repository
+2. Copy `.env.template` to `.env`
+3. Edit `.env` with your settings
+4. Install development dependencies: `pip install -e ".[dev]"`
+
+See `.env.template` for all available configuration options.
 
 ## Output Format
 
@@ -109,8 +129,6 @@ result = parser.process_pdf(
     pdf_path="path/to/document.pdf",
 )
 ```
-
-
 
 ## Contributing
 
