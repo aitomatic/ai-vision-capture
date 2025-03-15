@@ -5,10 +5,10 @@ A powerful Python library for extracting and analyzing content from PDF document
 ## Features
 
 - 🔍 **Multi-Provider Support**: Compatible with major VLM providers (OpenAI, Claude, Gemini, Azure, OpenSource models)
-- 📄 **PDF Processing**: Efficient PDF to image conversion with configurable DPI
+- 📄 **Document Processing**: Process PDFs and images (JPG, PNG, TIFF, WebP, BMP)
 - 🚀 **Async Processing**: Asynchronous processing with configurable concurrency
 - 💾 **Two-Layer Caching**: Local file system and cloud caching for improved performance
-- 🔄 **Batch Processing**: Process multiple PDFs in parallel
+- 🔄 **Batch Processing**: Process multiple documents in parallel
 - 📝 **Text Extraction**: Enhanced accuracy through combined OCR and VLM processing
 - 🎨 **Image Quality Control**: Configurable image quality settings
 - 📊 **Structured Output**: Well-organized JSON and Markdown output
@@ -45,20 +45,18 @@ parser = VisionParser()
 # Process a PDF
 result = parser.process_pdf("path/to/your/document.pdf")
 
-# Process multiple PDFs asynchronously
+# Process an image
+result = parser.process_image("path/to/your/image.jpg")
+
+# Process multiple documents asynchronously
 async def process_folder():
-    results = await parser.process_folder_async("path/to/folder")
+    results = await parser.process_folder_async("path/to/folder")  # Processes both PDFs and images
     return results
 ```
 
 For detailed configuration options and examples, see:
 - [Configuration Guide](examples/configuration.md)
 - [Advanced Usage Examples](examples/configuration.md#advanced-configuration-examples)
-
-## Configuration
-
-### Production Environment
-In production, configure the library using environment variables in your shell or deployment environment.
 
 Common settings you may want to adjust:
 ```bash
