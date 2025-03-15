@@ -2,7 +2,6 @@ from vision_capture import AnthropicVisionModel, VisionParser
 
 
 def main():
-    # Initialize Anthropic vision model (API key will be loaded from .env)
     vision_model = AnthropicVisionModel(
         model="claude-3-7-sonnet-20250219",
         temperature=0.0,
