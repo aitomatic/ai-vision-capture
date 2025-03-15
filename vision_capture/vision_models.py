@@ -129,6 +129,11 @@ class VisionModel(ABC):
         """Process one or more images synchronously with the given prompt."""
         pass
 
+    @abstractmethod
+    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+        """Process text asynchronously with the given prompt."""
+        pass
+
 
 class ImageSource(TypedDict):
     type: str
@@ -336,6 +341,27 @@ class AnthropicVisionModel(VisionModel):
 
         return str(response.content[0].text)
 
+    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+        """Process text using Claude Vision asynchronously."""
+        request_params = {
+            "model": self.model,
+            "max_tokens": kwargs.get("max_tokens", 4096),
+            "temperature": kwargs.get("temperature", 0.0),
+            "messages": messages,
+        }
+
+        response = await self.aclient.messages.create(**request_params)
+
+        # Log token usage
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+        }
+        self.log_token_usage(usage)
+
+        return str(response.content[0].text)
+
 
 class OpenAIVisionModel(VisionModel):
     """Implementation for OpenAI GPT-4 Vision models."""
@@ -437,6 +463,26 @@ class OpenAIVisionModel(VisionModel):
             messages=[message],
             max_tokens=self.max_tokens,
             temperature=self.temperature,
+            stream=kwargs.get("stream", False),
+        )
+
+        # Log token usage
+        usage = {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+        self.log_token_usage(usage)
+
+        return response.choices[0].message.content or ""
+
+    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+        """Process text using OpenAI Vision asynchronously."""
+        response = await self.aclient.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=kwargs.get("max_tokens", self.max_tokens),
+            temperature=kwargs.get("temperature", self.temperature),
             stream=kwargs.get("stream", False),
         )
 
