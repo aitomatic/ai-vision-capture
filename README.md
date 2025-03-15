@@ -13,71 +13,59 @@ A powerful Python library for extracting and analyzing content from PDF document
 - 🎨 **Image Quality Control**: Configurable image quality settings
 - 📊 **Structured Output**: Well-organized JSON and Markdown output
 
-## Coming Soon Features
-
-- 🔗 **Cross-Document Knowledge Capture**: Capture structured knowledge across multiple documents
-
-- 🎥 **Video Knowledge Capture**: Capture structured knowledge from video
-
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 pip install aicapture
 ```
 
-### Basic Setup
+## Environment Setup
 
-1. Set your chosen provider and API key (example using OpenAI):
+1. Set your chosen provider and API key:
 ```bash
+# For OpenAI
 export USE_VISION=openai
 export OPENAI_API_KEY=your_openai_key
+
+# For Anthropic
+export USE_VISION=anthropic
+export ANTHROPIC_API_KEY=your_anthropic_key
+
+# For Gemini
+export USE_VISION=gemini
+export GEMINI_API_KEY=your_google_key
 ```
 
-2. Use in your code:
+2. Optional performance settings:
+```bash
+export MAX_CONCURRENT_TASKS=5      # Number of concurrent processing tasks
+export VISION_PARSER_DPI=333      # Image DPI for PDF processing
+```
+
+## Core Capabilities
+
+### 1. Document Parsing
+
+The VisionParser provides general document processing capabilities for extracting unstructured content from documents.
+
 ```python
 from vision_capture import VisionParser
 
 # Initialize parser
 parser = VisionParser()
 
-# Process a PDF
+# Process a single PDF
 result = parser.process_pdf("path/to/your/document.pdf")
 
-# Process an image
+# Process a single image
 result = parser.process_image("path/to/your/image.jpg")
 
 # Process multiple documents asynchronously
 async def process_folder():
-    results = await parser.process_folder_async("path/to/folder")  # Processes both PDFs and images
-    return results
+    return await parser.process_folder_async("path/to/folder")
 ```
 
-For detailed configuration options and examples, see:
-- [Configuration Guide](examples/configuration.md)
-- [Advanced Usage Examples](examples/configuration.md#advanced-configuration-examples)
-
-Common settings you may want to adjust:
-```bash
-# Optional performance settings
-export MAX_CONCURRENT_TASKS=5      # Number of concurrent processing tasks
-export VISION_PARSER_DPI=333      # Image DPI for PDF processing
-```
-
-### Development Environment
-For local development:
-
-1. Clone the repository
-2. Copy `.env.template` to `.env`
-3. Edit `.env` with your settings
-4. Install development dependencies: `pip install -e ".[dev]"`
-
-See `.env.template` for all available configuration options.
-
-## Output Format
-
-The library produces structured output in both JSON and Markdown formats:
+#### Parser Output Format
 
 ```json
 {
@@ -97,7 +85,68 @@ The library produces structured output in both JSON and Markdown formats:
 }
 ```
 
+### 2. Structured Data Capture
+
+The VisionCapture component enables extraction of structured data from images using customizable templates.
+
+1. Define your data template:
+```python
+# Example template for technical alarm logic
+ALARM_TEMPLATE = """
+alarm:
+  description: string  # Main alarm description
+  destination: string # Destination system
+  tag: string        # Alarm tag
+  ref_logica: integer # Logic reference number
+
+dependencies:
+  type: array
+  items:
+    - signal_name: string  # Name of the dependency signal
+      source: string      # Source system/component
+      tag: string        # Signal tag
+      ref_logica: integer|null  # Logic reference (can be null)
+"""
+```
+
+2. Use with OpenAI Vision:
+```python
+from vision_capture import VisionCapture
+from vision_capture.vision_models import OpenAIVisionModel
+
+vision_model = OpenAIVisionModel(
+    model="gpt-4-vision-preview",
+    max_tokens=4096,
+    api_key="your_openai_key"
+)
+
+capture = VisionCapture(vision_model=vision_model)
+result = await capture.capture(
+    file_path="path/to/image.png",
+    template=ALARM_TEMPLATE
+)
+```
+
+3. Or use with Anthropic Claude:
+```python
+from vision_capture.vision_models import AnthropicVisionModel
+
+vision_model = AnthropicVisionModel(
+    model="claude-3-sonnet-20240620",
+    max_tokens=4096,
+    api_key="your_anthropic_key"
+)
+
+capture = VisionCapture(vision_model=vision_model)
+result = await capture.capture(
+    file_path="path/to/example.pdf",
+    template=ALARM_TEMPLATE
+)
+```
+
 ## Advanced Usage
+
+### Custom Vision Model Configuration
 
 ```python
 from vision_capture import VisionParser, GeminiVisionModel
@@ -127,6 +176,28 @@ result = parser.process_pdf(
     pdf_path="path/to/document.pdf",
 )
 ```
+
+## Development Setup
+
+For local development:
+
+1. Clone the repository
+2. Copy `.env.template` to `.env`
+3. Edit `.env` with your settings
+4. Install development dependencies: `pip install -e ".[dev]"`
+
+See `.env.template` for all available configuration options.
+
+## Documentation
+
+For detailed configuration options and examples, see:
+- [Configuration Guide](examples/configuration.md)
+- [Advanced Usage Examples](examples/configuration.md#advanced-configuration-examples)
+
+## Coming Soon
+
+- 🔗 **Cross-Document Knowledge Capture**: Capture structured knowledge across multiple documents
+- 🎥 **Video Knowledge Capture**: Capture structured knowledge from video
 
 ## Contributing
 
