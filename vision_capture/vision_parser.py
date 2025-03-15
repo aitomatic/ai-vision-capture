@@ -63,9 +63,15 @@ class PDFValidationError(Exception):
     pass
 
 
+class ImageValidationError(Exception):
+    """Raised when image validation fails."""
+
+    pass
+
+
 class VisionParser:
     """
-    A class for extracting content from PDF documents using Vision Language Models.
+    A class for extracting content from PDF documents and images using Vision Language Models.
     Supports multiple VLM providers through a pluggable vision model interface.
     Features:
     - Multiple image processing
@@ -73,7 +79,10 @@ class VisionParser:
     - Configurable concurrency
     - Result caching
     - Text extraction for improved accuracy
+    - Direct image file processing
     """
+
+    SUPPORTED_IMAGE_FORMATS = {'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'bmp'}
 
     # Class variable for global concurrency control
     _semaphore: Semaphore = Semaphore(MAX_CONCURRENT_TASKS)
@@ -442,11 +451,152 @@ class VisionParser:
         except Exception as e:
             logger.error(f"Error saving output: {str(e)}")
 
+    def _validate_image(self, image_path: str) -> None:
+        """
+        Validate that the file has a supported image extension.
+
+        Args:
+            image_path (str): Path to the image file
+
+        Raises:
+            ImageValidationError: If the file doesn't have a supported image extension
+        """
+        ext = Path(image_path).suffix.lower().lstrip('.')
+        if ext not in self.SUPPORTED_IMAGE_FORMATS:
+            raise ImageValidationError(
+                f"Unsupported image format: {ext}. Supported formats: {', '.join(self.SUPPORTED_IMAGE_FORMATS)}"
+            )
+
+    def _optimize_image(self, image: Image.Image) -> Image.Image:
+        """
+        Optimize image for processing while preserving quality.
+
+        Args:
+            image (Image.Image): Input image
+
+        Returns:
+            Image.Image: Optimized image
+        """
+        # Calculate target size while maintaining aspect ratio
+        max_dimension = 2000
+        ratio = min(max_dimension / max(image.size), 1.0)
+        if ratio < 1.0:
+            new_size = tuple(int(dim * ratio) for dim in image.size)
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+
+        return image
+
+    async def process_image_async(self, image_path: str) -> Dict:
+        """Process an image file asynchronously and return structured content.
+
+        Args:
+            image_path (str): Path to the image file
+
+        Returns:
+            Dict: Structured content following the same schema as PDF processing
+        """
+        # Initial validation and setup
+        image_file = Path(image_path)
+        logger.debug(f"Starting to process image file: {image_file.name}")
+
+        if not image_file.exists():
+            raise FileNotFoundError(f"Image file not found: {image_file}")
+
+        # Validate image format
+        self._validate_image(str(image_file))
+
+        # Calculate file hash
+        file_hash = HashUtils.calculate_file_hash(str(image_file))
+        logger.debug(f"Calculated file hash: {file_hash}")
+
+        try:
+            # Check cache unless invalidate_cache is True
+            cached_result = await self.cache.get(file_hash)
+            if cached_result:
+                logger.debug("Found cached results - using cached data")
+                self.save_markdown_output(cached_result)
+                return cached_result
+
+            # Load and optimize image
+            with Image.open(image_file) as img:
+                # Convert to RGB if necessary
+                if img.mode in ('RGBA', 'LA'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[-1])
+                    img = background
+                elif img.mode not in ('RGB', 'L'):
+                    img = img.convert('RGB')
+
+                # Optimize image
+                img = self._optimize_image(img)
+
+                # Process the image
+                page_result = await self.process_page_async(
+                    img,
+                    page_number=1,
+                    text_content="",  # No text content for direct image processing
+                )
+
+            # Compile results
+            result = {
+                "file_object": {
+                    "file_name": image_file.name,
+                    "file_hash": file_hash,
+                    "total_pages": 1,
+                    "total_words": len(page_result["page_content"].split()),
+                    "file_full_path": str(image_file.absolute()),
+                    "pages": [page_result],
+                }
+            }
+
+            # Save to cache
+            logger.info("Saving results to cache")
+            await self.cache.set(file_hash, result)
+
+            # Generate markdown output
+            self.save_markdown_output(result)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error processing image {image_file}: {str(e)}")
+            raise
+
+    def process_image(self, image_path: str) -> Dict:
+        """
+        Synchronous wrapper for process_image_async.
+
+        Args:
+            image_path (str): Path to the image file
+
+        Returns:
+            dict: Structured content following the same schema as PDF processing
+        """
+
+        async def _run() -> Dict:
+            try:
+                return await self.process_image_async(image_path)
+            except Exception as e:
+                logger.error(f"Error processing image: {e}")
+                return {}
+
+        return asyncio.run(_run())
+
     async def process_folder_async(self, folder_path: str) -> List[Dict]:
-        """Process all PDF files in a folder asynchronously."""
+        """Process all PDF and image files in a folder asynchronously."""
         results = []
         for file in os.listdir(folder_path):
-            if file.endswith(".pdf"):
-                result = await self.process_pdf_async(os.path.join(folder_path, file))
-                results.append(result)
+            file_path = os.path.join(folder_path, file)
+            try:
+                if file.lower().endswith('.pdf'):
+                    result = await self.process_pdf_async(file_path)
+                    results.append(result)
+                elif any(
+                    file.lower().endswith(ext) for ext in self.SUPPORTED_IMAGE_FORMATS
+                ):
+                    result = await self.process_image_async(file_path)
+                    results.append(result)
+            except Exception as e:
+                logger.error(f"Error processing file {file}: {str(e)}")
+                continue
         return results

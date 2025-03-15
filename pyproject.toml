@@ -24,11 +24,12 @@ loguru = "^0.7.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
+pytest-asyncio = "^0.23.5"
+pytest-cov = "^4.1.0"
 black = "^24.2.0"
 isort = "^5.13.0"
 flake8 = "^7.0.0"
 mypy = "^1.8.0"
-pytest-cov = "^4.1.0"
 pre-commit = "^3.6.0"
 
 [tool.poetry.extras]
@@ -60,4 +61,5 @@ check_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=vision_parser --cov-report=term-missing"
+addopts = "-v --cov=vision_capture --cov-report=term-missing"
+asyncio_mode = "auto"

@@ -86,9 +86,9 @@ class VisionModel(ABC):
         if not self.api_key:
             logger.error("API key is required")
             raise ValueError("API key is required")
-        if not self.api_base:
-            logger.error("API base is required")
-            raise ValueError("API base is required")
+        # if not self.api_base:
+        #     logger.error("API base is required")
+        #     raise ValueError("API base is required")
 
     def log_token_usage(self, usage_data: Dict[str, int]) -> None:
         """Log token usage statistics."""
