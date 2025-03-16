@@ -482,7 +482,7 @@ class VisionParser:
         ratio = min(max_dimension / max(image.size), 1.0)
         if ratio < 1.0:
             new_size = tuple(int(dim * ratio) for dim in image.size)
-            image = image.resize(new_size, Image.Resampling.LANCZOS)
+            image = image.resize(new_size, Image.Resampling.LANCZOS)  # type: ignore
 
         return image
 

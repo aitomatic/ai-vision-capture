@@ -1,8 +1,5 @@
-# flake8: noqa: E501
-
 """
-Video capture module for processing and analyzing video content using vision models.
-Extends the base vision capture functionality with video-specific features.
+Simple video capture module for extracting frames from videos.
 """
 
 from __future__ import annotations
@@ -10,47 +7,14 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import cv2
 import numpy as np
-from loguru import logger
 from PIL import Image
 
-from vision_capture.cache import FileCache, HashUtils, TwoLayerCache
-from vision_capture.vision_models import VisionModel
-from vision_capture.vision_parser import VisionParser
-
-DEFAULT_VIDEO_PROMPT = """
-Analyze this sequence of video frames and provide a comprehensive analysis of the video content:
-
-1. Overall Scene Description:
-   - Describe the main setting and environment
-   - Identify key subjects/actors in the video
-   - Note any significant changes in scene or setting
-
-2. Temporal Analysis:
-   - Describe the sequence of events in chronological order
-   - Note any significant actions or movements
-   - Identify any patterns or repetitive elements
-
-3. Key Objects and Elements:
-   - List important objects and their roles in the scene
-   - Note any text overlays or visual indicators
-   - Describe any relevant technical equipment or tools
-
-4. Technical Observations:
-   - Note any camera movements or angle changes
-   - Identify lighting conditions and changes
-   - Comment on video quality or notable visual characteristics
-
-5. Context and Purpose:
-   - Infer the likely purpose or context of the video
-   - Note any educational, instructional, or documentary elements
-   - Identify the target audience if apparent
-
-Provide the analysis in clear, concise language focusing on the most relevant details.
-"""
+# Fix circular import by importing directly from vision_models
+from vision_capture.vision_models import VisionModel, create_default_vision_model
 
 
 @dataclass
@@ -58,15 +22,10 @@ class VideoConfig:
     """Configuration for video processing."""
 
     max_duration_seconds: int = 30
-    frame_rate: int = 1  # Frames per second to extract
-    max_frames: int = 30
-    batch_size: int = 30  # Process all frames in one batch by default
-    min_confidence: float = 0.7
+    frame_rate: int = 2  # Frames per second to extract
     supported_formats: tuple = (".mp4", ".avi", ".mov", ".mkv")
-    target_frame_size: tuple = (768, 768)  # Aligned with example
-    frame_stride: int = 50  # Take every Nth frame for batch processing
+    target_frame_size: tuple = (768, 768)  # Target size for resized frames
     resize_frames: bool = True
-    prompt: str = DEFAULT_VIDEO_PROMPT
 
 
 class VideoValidationError(Exception):
@@ -75,25 +34,25 @@ class VideoValidationError(Exception):
     pass
 
 
-class VidCapture(VisionParser):
+class VidCapture:
     """
-    Parser for extracting and analyzing content from video files.
-    Extends the base VisionParser with video-specific functionality.
+    Simple utility for extracting frames from video files.
     """
 
     def __init__(
         self,
-        vision_model: Optional[VisionModel] = None,
-        cache_dir: Optional[str] = None,
         config: Optional[VideoConfig] = None,
-        **kwargs: Any,
+        vision_model: Optional[VisionModel] = None,
     ):
-        """Initialize VideoParser with configuration."""
-        super().__init__(vision_model=vision_model, cache_dir=cache_dir, **kwargs)
+        """
+        Initialize VideoCapture with configuration.
+
+        Args:
+            config: Configuration for video processing
+            vision_model: Vision model for image analysis (created if None)
+        """
         self.config = config or VideoConfig()
-        self._frame_cache = TwoLayerCache(
-            file_cache=FileCache(cache_dir), s3_cache=None
-        )
+        self.vision_model = vision_model or create_default_vision_model()
 
     def _validate_video(self, video_path: str) -> None:
         """
@@ -109,7 +68,8 @@ class VidCapture(VisionParser):
             video_path.lower().endswith(fmt) for fmt in self.config.supported_formats
         ):
             raise VideoValidationError(
-                f"Unsupported video format. Supported formats: {self.config.supported_formats}"
+                f"Unsupported video format. Supported formats: "
+                f"{self.config.supported_formats}"
             )
 
         cap = cv2.VideoCapture(video_path)
@@ -123,7 +83,8 @@ class VidCapture(VisionParser):
 
         if duration > self.config.max_duration_seconds:
             raise VideoValidationError(
-                f"Video duration ({duration:.1f}s) exceeds maximum allowed ({self.config.max_duration_seconds}s)"
+                f"Video duration ({duration:.1f}s) exceeds maximum allowed "
+                f"({self.config.max_duration_seconds}s)"
             )
 
         cap.release()
@@ -143,43 +104,62 @@ class VidCapture(VisionParser):
         image = Image.fromarray(frame_rgb)
 
         # Resize if needed while maintaining aspect ratio
-        width, height = image.size
-        if (
-            width > self.config.target_frame_size[0]
-            or height > self.config.target_frame_size[1]
-        ):
-            scale = min(
-                self.config.target_frame_size[0] / width,
-                self.config.target_frame_size[1] / height,
-            )
-            new_size = (int(width * scale), int(height * scale))
-            image = image.resize(new_size, Image.Resampling.LANCZOS)
+        if self.config.resize_frames:
+            width, height = image.size
+            if (
+                width > self.config.target_frame_size[0]
+                or height > self.config.target_frame_size[1]
+            ):
+                scale = min(
+                    self.config.target_frame_size[0] / width,
+                    self.config.target_frame_size[1] / height,
+                )
+                new_size = (int(width * scale), int(height * scale))
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
 
         return image
 
-
-    async def _extract_frames(
-        self, video_path: str, file_hash: str
-    ) -> Tuple[List[Image.Image], float]:
+    def extract_frames(self, video_path: str) -> Tuple[List[Image.Image], float]:
         """
         Extract frames from video at specified intervals.
 
         Args:
             video_path: Path to video file
-            file_hash: Hash of video file for caching
 
         Returns:
             Tuple of (list of frames, frame interval in seconds)
         """
-        cap = cv2.VideoCapture(video_path)
+        # Validate the video first
+        self._validate_video(video_path)
+
+        video_file = Path(video_path)
+        if not video_file.exists():
+            raise FileNotFoundError(f"Video file not found: {video_file}")
+
+        cap = cv2.VideoCapture(str(video_file))
         fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / fps
+
+        # Calculate frame interval based on desired frame rate
         frame_interval = 1.0 / self.config.frame_rate
         frames = []
 
-        frame_count = 0
-        while cap.isOpened() and frame_count < self.config.max_frames:
+        # Calculate how many frames to extract
+        num_frames_to_extract = min(
+            int(duration * self.config.frame_rate),
+            int(self.config.max_duration_seconds * self.config.frame_rate),
+        )
+
+        print(
+            f"Extracting {num_frames_to_extract} frames "
+            f"at {self.config.frame_rate} fps "
+            f"from video with duration {duration:.1f}s"
+        )
+
+        for frame_idx in range(num_frames_to_extract):
             # Calculate the frame position
-            frame_position = int(frame_count * frame_interval * fps)
+            frame_position = int(frame_idx * frame_interval * fps)
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_position)
 
             ret, frame = cap.read()
@@ -190,132 +170,66 @@ class VidCapture(VisionParser):
             pil_frame = self._optimize_frame(frame)
             frames.append(pil_frame)
 
-            frame_count += 1
-
         cap.release()
         return frames, frame_interval
 
-    async def process_video_async(self, video_path: str) -> Dict[str, Any]:
+    async def capture_async(
+        self, prompt: str, images: List[Image.Image], **kwargs: Any
+    ) -> str:
         """
-        Process a video file asynchronously and return structured content.
+        Extract knowledge from a list of images using a vision model.
 
         Args:
-            video_path: Path to video file
+            prompt: Instruction prompt for the vision model
+            images: List of images to analyze
+            **kwargs: Additional parameters to pass to the vision model
 
         Returns:
-            Dict containing structured video analysis
+            String containing the extracted knowledge
         """
-        video_file = Path(video_path)
-        logger.debug(f"Starting to process video file: {video_file.name}")
+        if not images:
+            raise ValueError("No images provided for analysis")
 
-        if not video_file.exists():
-            raise FileNotFoundError(f"Video file not found: {video_file}")
+        print(f"Analyzing {len(images)} images with vision model")
 
-        # Validate video
-        self._validate_video(str(video_file))
+        # Process the images with the vision model
+        result = await self.vision_model.aprocess_image(
+            image=images, prompt=prompt, **kwargs
+        )
 
-        # Calculate file hash
-        file_hash = HashUtils.calculate_file_hash(str(video_file))
-        logger.debug(f"Calculated file hash: {file_hash}")
+        return result
 
-        try:
-            # Check cache
-            cached_result = await self.cache.get(file_hash)
-            if cached_result:
-                logger.debug("Found cached results - using cached data")
-                return cached_result
-
-            # Extract frames
-            frames, frame_interval = await self._extract_frames(
-                str(video_file), file_hash
-            )
-            logger.info(f"Extracted {len(frames)} frames from video")
-
-            # Process all frames in a single batch
-            analysis = await self._process_video_frames(frames, frame_interval)
-
-            # Compile final results
-            result = {
-                "file_object": {
-                    "file_name": video_file.name,
-                    "file_hash": file_hash,
-                    "file_type": "video",
-                    "duration": len(frames) * frame_interval,
-                    "frame_count": len(frames),
-                    "frame_rate": self.config.frame_rate,
-                    "file_full_path": str(video_file.absolute()),
-                    "analysis": analysis,
-                    "frames": [
-                        {
-                            "frame_number": i + 1,
-                            "timestamp": i * frame_interval,
-                        }
-                        for i in range(len(frames))
-                    ],
-                }
-            }
-
-            # Cache results
-            await self.cache.set(file_hash, result)
-            return result
-
-        except Exception as e:
-            logger.error(f"Error processing video {video_file}: {str(e)}")
-            raise
-
-    async def _process_video_frames(
-        self, frames: List[Image.Image], frame_interval: float
-    ) -> Dict[str, Any]:
+    def capture(self, prompt: str, images: List[Image.Image], **kwargs: Any) -> str:
         """
-        Process all video frames in a single batch to extract overall meaning.
+        Synchronous wrapper for capture_async.
 
         Args:
-            frames: List of video frames as PIL Images
-            frame_interval: Time interval between frames
+            prompt: Instruction prompt for the vision model
+            images: List of images to analyze
+            **kwargs: Additional parameters to pass to the vision model
 
         Returns:
-            Dict containing the analysis of the video content
+            String containing the extracted knowledge
         """
-        try:
-            # Process all frames in a single vision model call
-            logger.info(f"Processing batch of {len(frames)} frames")
-            content = await self.vision_model.aprocess_image(
-                frames,
-                prompt=self.config.prompt,
-            )
+        return asyncio.run(self.capture_async(prompt, images, **kwargs))
 
-            # Structure the analysis
-            analysis = {
-                "content": content.strip(),
-                "confidence": 1.0,  # TODO: Implement confidence scoring
-                "metadata": {
-                    "total_frames": len(frames),
-                    "frame_interval": frame_interval,
-                    "total_duration": len(frames) * frame_interval,
-                },
-            }
-
-            return analysis
-
-        except Exception as e:
-            logger.error(f"Error in batch processing: {str(e)}")
-            raise
-
-    def process_video(self, video_path: str) -> Dict[str, Any]:
+    def process_video(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
-        Synchronous wrapper for process_video_async.
+        Extract frames from a video and analyze them with a vision model.
 
         Args:
-            video_path: Path to video file
+            video_path: Path to the video file
+            prompt: Instruction prompt for the vision model
+            **kwargs: Additional parameters to pass to the vision model
 
         Returns:
-            Dict containing structured video analysis
+            String containing the extracted knowledge from the video frames
         """
-        return asyncio.run(self.process_video_async(video_path))
+        # Extract frames from the video
+        frames, _ = self.extract_frames(video_path)
 
+        if not frames:
+            raise ValueError(f"No frames could be extracted from {video_path}")
 
-if __name__ == "__main__":
-    vid_file = "tests/sample/vids/rock.mp4"
-    parser = VidCapture()
-    result = parser.process_video(vid_file)
-    print(result)
+        # Analyze the frames
+        return self.capture(prompt, frames, **kwargs)
