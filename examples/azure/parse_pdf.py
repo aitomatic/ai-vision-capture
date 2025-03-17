@@ -13,7 +13,7 @@ def main():
     )
 
     # Process a single PDF
-    result = parser.process_pdf("examples/pdfs/sample.pdf")
+    result = parser.process_pdf("tests/sample/pdfs/sample.pdf")
 
     # Save results
     # parser.save_output(result, "output.json")
