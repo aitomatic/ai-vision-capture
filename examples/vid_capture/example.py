@@ -32,6 +32,8 @@ def run_example():  # Example usage
         3. Any notable actions or events
         """
 
+        prompt = "Describe the content of the video?"
+
         result = video_capture.capture(prompt, frames)
         print("\nAnalysis Result:")
         print(result)
