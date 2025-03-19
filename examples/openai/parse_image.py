@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from vision_capture import OpenAIVisionModel, VisionParser
 
 

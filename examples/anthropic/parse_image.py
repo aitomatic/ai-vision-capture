@@ -17,14 +17,14 @@ def main():
         vision_model=vision_model,
         cache_dir="./.vision_cache/anthropic",
         invalidate_cache=True,  # Set to True to force reprocessing
-        # prompt="""
-        # You are an expert electrical engineer. The uploaded image is a logical diagram
-        # that processes input signals (sensors) on the left-hand side and produces an
-        # output result on the right-hand side. There is an alarm in the diagram.
-        # Identify all possible input signals (dependencies) that contribute to triggering
-        # this alarm. Provide the exact sensor names and any relevant identifiers
-        # (e.g., TAG, RF LOGICA) for each dependency. Be precise.
-        # """,
+        prompt="""
+        You are an expert electrical engineer. The uploaded image is a logical diagram
+        that processes input signals (sensors) on the left-hand side and produces an
+        output result on the right-hand side. There is an alarm in the diagram.
+        Identify all possible input signals (dependencies) that contribute to triggering
+        this alarm. Provide the exact sensor names and any relevant identifiers
+        (e.g., TAG, RF LOGICA) for each dependency. Be precise.
+        """,
     )
 
     # Process the image
