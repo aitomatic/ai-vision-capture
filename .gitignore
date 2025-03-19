@@ -174,3 +174,4 @@ cython_debug/
 poetry.lock
 tmp/
 .vision_cache/
+.vscode/

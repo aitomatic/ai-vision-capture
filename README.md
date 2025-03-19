@@ -6,6 +6,7 @@ A powerful Python library for extracting and analyzing content from PDF document
 
 - 🔍 **Multi-Provider Support**: Compatible with major VLM providers (OpenAI, Claude, Gemini, Azure, OpenSource models)
 - 📄 **Document Processing**: Process PDFs and images (JPG, PNG, TIFF, WebP, BMP)
+- 🎥 **Video Processing**: Extract and analyze frames from video files (MP4, AVI, MOV, MKV)
 - 🚀 **Async Processing**: Asynchronous processing with configurable concurrency
 - 💾 **Two-Layer Caching**: Local file system and cloud caching for improved performance
 - 🔄 **Batch Processing**: Process multiple documents in parallel
@@ -115,7 +116,7 @@ from vision_capture import VisionCapture
 from vision_capture.vision_models import OpenAIVisionModel
 
 vision_model = OpenAIVisionModel(
-    model="gpt-4-vision-preview",
+    model="gpt-4o",
     max_tokens=4096,
     api_key="your_openai_key"
 )
@@ -141,6 +142,41 @@ capture = VisionCapture(vision_model=vision_model)
 result = await capture.capture(
     file_path="path/to/example.pdf",
     template=ALARM_TEMPLATE
+)
+```
+
+### 3. Video Processing
+
+The VidCapture component enables extraction of knowledge from video files by extracting frames and analyzing them with VLMs.
+
+```python
+from vision_capture import VidCapture, VideoConfig
+
+# Configure video capture with custom settings
+config = VideoConfig(
+    frame_rate=2,                         # Extract 2 frames per second
+    max_duration_seconds=30,              # Process up to 30 seconds of video
+    target_frame_size=(768, 768),         # Resize frames for optimal processing
+    supported_formats=(".mp4", ".avi", ".mov", ".mkv")
+)
+
+# Initialize video capture
+video_capture = VidCapture(config)
+
+# Process a video file with a custom prompt
+result = video_capture.process_video(
+    video_path="path/to/your/video.mp4",
+    prompt="Describe what is happening in this video."
+)
+
+# Or extract frames for custom processing
+frames, interval = video_capture.extract_frames("path/to/your/video.mp4")
+print(f"Extracted {len(frames)} frames at {interval:.2f}s intervals")
+
+# Analyze the extracted frames with a custom prompt
+result = video_capture.capture(
+    prompt="Analyze these video frames and describe key objects and actions.",
+    images=frames
 )
 ```
 
@@ -197,7 +233,6 @@ For detailed configuration options and examples, see:
 ## Coming Soon
 
 - 🔗 **Cross-Document Knowledge Capture**: Capture structured knowledge across multiple documents
-- 🎥 **Video Knowledge Capture**: Capture structured knowledge from video
 
 ## Contributing
 
