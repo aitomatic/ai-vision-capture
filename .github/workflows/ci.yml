@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, dev]
     paths:
-      - "vision_capture/**"
+      - "aicapture/**"
       - "tests/**"
       - "poetry.lock"
       - "pyproject.toml"
@@ -57,11 +57,11 @@ jobs:
     - name: Run linters
       run: |
         echo "🔍 Running Flake8..."
-        poetry run flake8 vision_capture tests
+        poetry run flake8 aicapture tests
         echo "✅ Flake8 completed"
         
         echo "🔍 Running MyPy type checking..."
-        poetry run mypy vision_capture tests --show-error-codes --pretty
+        poetry run mypy aicapture tests --show-error-codes --pretty
         echo "✅ MyPy check completed"
 
     - name: Run tests
@@ -72,4 +72,4 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
-        poetry run pytest -v --cov=vision_capture --cov-report=term-missing 
+        poetry run pytest -v --cov=aicapture --cov-report=term-missing 
