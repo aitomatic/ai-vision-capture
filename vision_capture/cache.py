@@ -327,6 +327,12 @@ class HashUtils:
                 sha256.update(chunk)
         return sha256.hexdigest()
 
+    @staticmethod
+    def get_cache_key(file_hash: str, prompt: str) -> str:
+        """Get a cache key for a file and prompt."""
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        return f"{file_hash}_{prompt_hash}"
+
 
 class ImageCache:
     """A specialized cache implementation for storing PDF page images."""
