@@ -27,11 +27,11 @@ lint-black: ## run black in check mode
 
 lint-flake8: ## run flake8
 	@echo "🔍 Checking code using flake8..."
-	@poetry run flake8 vision_capture tests
+	@poetry run flake8 aicapture tests
 
 lint-mypy: ## run mypy (static-type checker)
 	@echo "🔍 Type checking using mypy..."
-	@poetry run mypy vision_capture tests --show-error-codes --pretty
+	@poetry run mypy aicapture tests --show-error-codes --pretty
 
 lint-isort: ## run isort in check mode
 	@echo "🔍 Checking import format using isort..."
@@ -44,7 +44,7 @@ lint: lint-black lint-flake8 lint-mypy lint-isort ## run all linters
 
 test: ## run tests with coverage
 	@echo "🧪 Running tests..."
-	@poetry run pytest -v --cov=vision_capture --cov-report=term-missing
+	@poetry run pytest -v --cov=aicapture --cov-report=term-missing
 
 ##@ All
 

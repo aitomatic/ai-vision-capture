@@ -13,7 +13,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletionUserMessageParam
 from PIL import Image
 
-from vision_capture.settings import (
+from aicapture.settings import (
     USE_VISION,
     AnthropicVisionConfig,
     AzureOpenAIVisionConfig,

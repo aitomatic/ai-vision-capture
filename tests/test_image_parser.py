@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from vision_capture.vision_models import create_default_vision_model
-from vision_capture.vision_parser import VisionParser
+from aicapture.vision_models import create_default_vision_model
+from aicapture.vision_parser import VisionParser
 
 # Define test image path
 TEST_IMAGE_PATH = Path(__file__).parent / "sample" / "images" / "logic.png"

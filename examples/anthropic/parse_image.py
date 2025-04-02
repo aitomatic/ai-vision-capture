@@ -1,6 +1,6 @@
 import os
 
-from vision_capture import AnthropicVisionModel, VisionParser
+from aicapture import AnthropicVisionModel, VisionParser
 
 
 def main():

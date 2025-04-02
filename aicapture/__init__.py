@@ -3,10 +3,10 @@ Vision Capture - A powerful Python library for extracting and analyzing content
 using Vision Language Models.
 """
 
-from vision_capture.cache import FileCache, ImageCache, TwoLayerCache
-from vision_capture.settings import ImageQuality
-from vision_capture.vid_capture import VidCapture, VideoConfig, VideoValidationError
-from vision_capture.vision_models import (
+from aicapture.cache import FileCache, ImageCache, TwoLayerCache
+from aicapture.settings import ImageQuality
+from aicapture.vid_capture import VidCapture, VideoConfig, VideoValidationError
+from aicapture.vision_models import (
     AnthropicVisionModel,
     AzureOpenAIVisionModel,
     GeminiVisionModel,
@@ -14,7 +14,7 @@ from vision_capture.vision_models import (
     VisionModel,
     create_default_vision_model,
 )
-from vision_capture.vision_parser import VisionParser
+from aicapture.vision_parser import VisionParser
 
 __version__ = "0.1.2"
 __author__ = "Aitomatic, Inc."

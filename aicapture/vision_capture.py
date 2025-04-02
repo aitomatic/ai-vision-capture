@@ -5,8 +5,8 @@ based on predefined templates.
 
 from typing import Any, Dict, Optional
 
-from vision_capture.vision_models import VisionModel, create_default_vision_model
-from vision_capture.vision_parser import VisionParser
+from aicapture.vision_models import VisionModel, create_default_vision_model
+from aicapture.vision_parser import VisionParser
 
 
 class VisionCapture:

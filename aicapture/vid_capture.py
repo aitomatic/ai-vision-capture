@@ -14,7 +14,7 @@ import numpy as np
 from PIL import Image
 
 # Fix circular import by importing directly from vision_models
-from vision_capture.vision_models import VisionModel, create_default_vision_model
+from aicapture.vision_models import VisionModel, create_default_vision_model
 
 
 @dataclass

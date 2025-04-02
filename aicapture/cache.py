@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Union, cast
 from loguru import logger
 from PIL import Image, ImageFile
 
-from vision_capture.settings import CLOUD_CACHE_BUCKET
-from vision_capture.utils import (
+from aicapture.settings import CLOUD_CACHE_BUCKET
+from aicapture.utils import (
     delete_file_from_s3_async,
     get_file_from_s3_async,
     get_s3_client,

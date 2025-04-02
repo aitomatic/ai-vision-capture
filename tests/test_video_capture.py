@@ -5,8 +5,8 @@ import pytest
 from PIL import Image
 from pytest import MonkeyPatch
 
-from vision_capture import VidCapture, VideoConfig
-from vision_capture.vid_capture import VideoValidationError
+from aicapture import VidCapture, VideoConfig
+from aicapture.vid_capture import VideoValidationError
 
 # Define test video paths
 TEST_VIDEO_PATH = Path(__file__).parent / "sample" / "vids" / "rock.mp4"

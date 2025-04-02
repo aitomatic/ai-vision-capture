@@ -1,4 +1,4 @@
-from vision_capture import OpenAIVisionModel, VisionParser
+from aicapture import OpenAIVisionModel, VisionParser
 
 ### set up ollama
 # ollama run llama3.2-vision:11b-instruct-q4_K_M

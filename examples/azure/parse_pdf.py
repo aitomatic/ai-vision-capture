@@ -1,4 +1,4 @@
-from vision_capture import AzureOpenAIVisionModel, VisionParser
+from aicapture import AzureOpenAIVisionModel, VisionParser
 
 
 def main():
