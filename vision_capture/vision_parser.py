@@ -24,7 +24,8 @@ DEFAULT_PROMPT = """
     Text Content:
     - Extract all text in correct reading order, preserving original formatting and hierarchy
     - Maintain section headers, subheaders, and their relationships
-    - Include all numerical values, units, and technical specifications, DO NOT summarize the content
+    - Include all numerical values, units, and technical specifications, 
+    - DO NOT summarize the content or skip any sections, we need all the details as possible.
 
     Tables:
     - Convert to markdown format with clear column headers, keep the nested structure as it is.
@@ -34,26 +35,24 @@ DEFAULT_PROMPT = """
     Graphs & Charts:
     - Identify the visualization type (line graph, bar chart, scatter plot, etc.)
     - List all axes labels and their units
-    - Describe the overall trend or pattern
-    - Highlight significant values (max/min points, outliers, averages)
-    - Note all important annotations or legends
+    - Describe all the insights, trends, or patterns
+    - Include details for all annotations, legends, labels, etc.
     - Explain what the visualization is demonstrating
 
     Diagrams & Schematics:
     - Identify the type of diagram (block diagram, circuit schematic, flowchart, etc.)
-    - List main components and their functions
-    - Describe key connections and relationships between components
-    - Note all important labels, values, or specifications
-    - Explain the overall purpose and operation of the diagram
+    - List all components and their functions
+    - Describe all connections and relationships between components
+    - Include all labels, values, or specifications
+    - Explain purpose and operation of the diagram
 
     Images:
-    - Describe what the image shows (main subject/content)
-    - List important visual elements and features
-    - Note any measurements, dimensions, or specifications
-    - Capture any text, labels, or annotations
-    - Explain the purpose or significance of the image
+    - Describe what the image shows
+    - Include all measurements, dimensions, or specifications
+    - Capture all text, labels, or annotations
+    - Explain the purpose or meaning of the image
 
-    Output the markdown content in clear text without introductory phrases or meta-commentary. Do not include delimiter like ```markdown.
+    Output in markdown format, with all details, do not include introductory phrases or meta-commentary.
     """
 
 
@@ -112,8 +111,8 @@ class VisionParser:
         """
         self.vision_model = vision_model or create_default_vision_model()
         self.vision_model.image_quality = image_quality
-        self.invalidate_cache = invalidate_cache
-        self.invalidate_image_cache = invalidate_image_cache
+        self._invalidate_cache = invalidate_cache
+        self._invalidate_image_cache = invalidate_image_cache
         self.prompt = prompt
         self.dpi = int(os.getenv("VISION_PARSER_DPI", "333"))
 
@@ -126,6 +125,38 @@ class VisionParser:
         self.cache = TwoLayerCache(
             file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache  # type: ignore
         )
+
+    @property
+    def invalidate_cache(self) -> bool:
+        """Get the invalidate_cache value."""
+        return self._invalidate_cache
+
+    @invalidate_cache.setter
+    def invalidate_cache(self, value: bool) -> None:
+        """
+        Set the invalidate_cache value and update the cache accordingly.
+
+        Args:
+            value (bool): Whether to invalidate the cache
+        """
+        self._invalidate_cache = value
+        if hasattr(self, 'cache'):
+            self.cache.invalidate_cache = value
+
+    @property
+    def invalidate_image_cache(self) -> bool:
+        """Get the invalidate_image_cache value."""
+        return self._invalidate_image_cache
+
+    @invalidate_image_cache.setter
+    def invalidate_image_cache(self, value: bool) -> None:
+        """
+        Set the invalidate_image_cache value.
+
+        Args:
+            value (bool): Whether to invalidate the image cache
+        """
+        self._invalidate_image_cache = value
 
     def _validate_pdf(self, pdf_path: str) -> None:
         """
@@ -225,13 +256,13 @@ class VisionParser:
             logger.error(f"Error saving markdown output: {str(e)}")
             raise
 
-    def _get_partial_cache_path(self, file_hash: str) -> Path:
+    def _get_partial_cache_path(self, cache_key: str) -> Path:
         """Get the path for partial results cache file."""
-        return self.cache.file_cache.cache_dir / f"{file_hash}_partial.json"
+        return self.cache.file_cache.cache_dir / f"{cache_key}_partial.json"
 
-    async def _load_partial_results(self, file_hash: str) -> Dict[int, Dict]:
+    async def _load_partial_results(self, cache_key: str) -> Dict[int, Dict]:
         """Load partial processing results if they exist."""
-        cache_path = self._get_partial_cache_path(file_hash)
+        cache_path = self._get_partial_cache_path(cache_key)
         try:
             if cache_path.exists():
                 with open(cache_path, "r", encoding="utf-8") as f:
@@ -240,15 +271,15 @@ class VisionParser:
             logger.warning(f"Error loading partial results: {str(e)}")
         return {}
 
-    async def _save_partial_results(self, file_hash: str, pages: List[Dict]) -> None:
+    async def _save_partial_results(self, cache_key: str, pages: List[Dict]) -> None:
         """Save partial processing results."""
-        cache_path = self._get_partial_cache_path(file_hash)
+        cache_path = self._get_partial_cache_path(cache_key)
         try:
             # Convert list of pages to dict with page_number as key
             pages_dict = {page["page_number"]: page for page in pages}
 
             # Load existing results and update with new pages
-            existing_results = await self._load_partial_results(file_hash)
+            existing_results = await self._load_partial_results(cache_key)
             existing_results.update(pages_dict)
 
             # Save updated results
@@ -317,7 +348,7 @@ class VisionParser:
     async def _compile_results(  # noqa
         self,
         pdf_file: Path,
-        file_hash: str,
+        cache_key: str,
         pages: List[Dict],
         total_words: int,
         total_pages: int,
@@ -327,7 +358,7 @@ class VisionParser:
         pages.sort(key=lambda x: int(x["page_number"]))
 
         # Clean up partial results file
-        partial_cache = self._get_partial_cache_path(file_hash)
+        partial_cache = self._get_partial_cache_path(cache_key)
         if partial_cache.exists():
             partial_cache.unlink()
 
@@ -335,7 +366,7 @@ class VisionParser:
         return {
             "file_object": {
                 "file_name": pdf_file.name,
-                "file_hash": file_hash,
+                "cache_key": cache_key,
                 "total_pages": total_pages,
                 "total_words": total_words,
                 "file_full_path": str(pdf_file.absolute()),
@@ -348,16 +379,17 @@ class VisionParser:
 
         # Initial validation and setup
         pdf_file, file_hash = await self._validate_and_setup(pdf_path)
+        cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
 
         try:
             # Check cache unless invalidate_cache is True
-            cached_result = await self.cache.get(file_hash)
+            cached_result = await self.cache.get(cache_key)
             if cached_result:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)
                 return cached_result
             # Load any partial results
-            partial_results = await self._load_partial_results(file_hash)
+            partial_results = await self._load_partial_results(cache_key)
             logger.info(f"Found {len(partial_results)} cached pages")
 
             # Extract text content from PDF
@@ -384,8 +416,8 @@ class VisionParser:
 
             # Cache the images if not invalidating image cache
             # if not self.invalidate_image_cache:
-            #     logger.info(f"Caching {len(images)} images for {file_hash}")
-            #     await self.image_cache.cache_images(images, file_hash)
+            #     logger.info(f"Caching {len(images)} images for {cache_key}")
+            #     await self.image_cache.cache_images(images, cache_key)
 
             # Process pages in batches
             batch_size = MAX_CONCURRENT_TASKS
@@ -399,7 +431,7 @@ class VisionParser:
                 )
                 all_pages.extend(pages)
                 total_words += words
-                await self._save_partial_results(file_hash, all_pages)
+                await self._save_partial_results(cache_key, all_pages)
 
             # Clean up images
             for image in images:
@@ -407,11 +439,11 @@ class VisionParser:
 
             # Compile final results
             result = await self._compile_results(
-                pdf_file, file_hash, all_pages, total_words, len(images)
+                pdf_file, cache_key, all_pages, total_words, len(images)
             )
 
             logger.info("Saving results to cache")
-            await self.cache.set(file_hash, result)
+            await self.cache.set(cache_key, result)
 
             # Generate markdown output
             self.save_markdown_output(result)
@@ -507,11 +539,12 @@ class VisionParser:
 
         # Calculate file hash
         file_hash = HashUtils.calculate_file_hash(str(image_file))
-        logger.debug(f"Calculated file hash: {file_hash}")
+        cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
+        logger.debug(f"Calculated cache key: {cache_key}")
 
         try:
             # Check cache unless invalidate_cache is True
-            cached_result = await self.cache.get(file_hash)
+            cached_result = await self.cache.get(cache_key)
             if cached_result:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)
@@ -541,7 +574,7 @@ class VisionParser:
             result = {
                 "file_object": {
                     "file_name": image_file.name,
-                    "file_hash": file_hash,
+                    "cache_key": cache_key,
                     "total_pages": 1,
                     "total_words": len(page_result["page_content"].split()),
                     "file_full_path": str(image_file.absolute()),
@@ -551,7 +584,7 @@ class VisionParser:
 
             # Save to cache
             logger.info("Saving results to cache")
-            await self.cache.set(file_hash, result)
+            await self.cache.set(cache_key, result)
 
             # Generate markdown output
             self.save_markdown_output(result)

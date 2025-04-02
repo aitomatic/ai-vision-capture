@@ -24,6 +24,7 @@ class VisionCapture:
         self.vision_parser = vision_parser or VisionParser(
             vision_model=self.vision_model
         )
+        # self.vision_parser.invalidate_cache = True
 
     async def _parse_file(self, file_path: str) -> Dict[str, Any]:
         """
@@ -58,7 +59,9 @@ class VisionCapture:
             f"<content>{content}</content>"
         )
         messages = [
-            {"role": "system", "content": message},
-            {"role": "user", "content": content},
+            {"role": "user", "content": message},
         ]
+        # from pprint import pprint
+
+        # pprint(messages)
         return await self.vision_model.process_text(messages)
