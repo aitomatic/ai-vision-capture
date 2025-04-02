@@ -1,4 +1,4 @@
-from vision_capture import GeminiVisionModel, VisionParser
+from aicapture import GeminiVisionModel, VisionParser
 
 
 def main():

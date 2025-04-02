@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from vision_capture.vision_parser import VisionParser
+from aicapture.vision_parser import VisionParser
 
 
 class TestVisionParser(unittest.TestCase):

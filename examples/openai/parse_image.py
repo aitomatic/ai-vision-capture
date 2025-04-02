@@ -1,4 +1,4 @@
-from vision_capture import OpenAIVisionModel, VisionParser
+from aicapture import OpenAIVisionModel, VisionParser
 
 
 def main():

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vision_capture import VidCapture, VideoConfig
+from aicapture import VidCapture, VideoConfig
 
 
 def run_example():  # Example usage

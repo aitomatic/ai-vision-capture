@@ -50,7 +50,7 @@ export VISION_PARSER_DPI=333      # Image DPI for PDF processing
 The VisionParser provides general document processing capabilities for extracting unstructured content from documents.
 
 ```python
-from vision_capture import VisionParser
+from aicapture import VisionParser
 
 # Initialize parser
 parser = VisionParser()
@@ -112,8 +112,8 @@ dependencies:
 
 2. Use with OpenAI Vision:
 ```python
-from vision_capture import VisionCapture
-from vision_capture.vision_models import OpenAIVisionModel
+from aicapture import VisionCapture
+from aicapture.vision_models import OpenAIVisionModel
 
 vision_model = OpenAIVisionModel(
     model="gpt-4o",
@@ -130,7 +130,7 @@ result = await capture.capture(
 
 3. Or use with Anthropic Claude:
 ```python
-from vision_capture.vision_models import AnthropicVisionModel
+from aicapture.vision_models import AnthropicVisionModel
 
 vision_model = AnthropicVisionModel(
     model="claude-3-sonnet-20240620",
@@ -150,7 +150,7 @@ result = await capture.capture(
 The VidCapture component enables extraction of knowledge from video files by extracting frames and analyzing them with VLMs.
 
 ```python
-from vision_capture import VidCapture, VideoConfig
+from aicapture import VidCapture, VideoConfig
 
 # Configure video capture with custom settings
 config = VideoConfig(
@@ -185,7 +185,7 @@ result = video_capture.capture(
 ### Custom Vision Model Configuration
 
 ```python
-from vision_capture import VisionParser, GeminiVisionModel
+from aicapture import VisionParser, GeminiVisionModel
 
 # Configure Gemini vision model with custom settings
 vision_model = GeminiVisionModel(

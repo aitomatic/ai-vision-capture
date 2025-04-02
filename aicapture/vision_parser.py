@@ -14,9 +14,9 @@ import fitz  # type: ignore
 from loguru import logger
 from PIL import Image
 
-from vision_capture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
-from vision_capture.settings import MAX_CONCURRENT_TASKS, ImageQuality
-from vision_capture.vision_models import VisionModel, create_default_vision_model
+from aicapture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
+from aicapture.settings import MAX_CONCURRENT_TASKS, ImageQuality
+from aicapture.vision_models import VisionModel, create_default_vision_model
 
 DEFAULT_PROMPT = """
     Extract the document content, following these guidelines:

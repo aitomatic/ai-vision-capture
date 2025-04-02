@@ -8,8 +8,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-from vision_capture.vision_capture import VisionCapture
-from vision_capture.vision_models import AnthropicVisionModel
+from aicapture.vision_capture import VisionCapture
+from aicapture.vision_models import AnthropicVisionModel
 
 # Template for technical alarm logic
 ALARM_TEMPLATE = """
