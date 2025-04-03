@@ -12,6 +12,7 @@ def main():
         vision_model=vision_model,
         cache_dir="./.vision_cache/anthropic",
         invalidate_cache=True,  # change to True to invalidate cache
+        cloud_bucket="aitomatic-dxa-data",
     )
 
     # Process a single PDF

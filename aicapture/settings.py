@@ -39,7 +39,6 @@ class VisionModelProvider:
 # Default vision model configuration
 USE_VISION = os.getenv("USE_VISION", VisionModelProvider.openai).lower()
 MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "5"))
-CLOUD_CACHE_BUCKET = os.getenv("CLOUD_CACHE_BUCKET", "your-bucket-name")
 
 
 # Image quality settings
