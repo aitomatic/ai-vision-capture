@@ -475,6 +475,17 @@ class VisionParser:
             pdf_file, file_hash = await self._validate_and_setup(pdf_path)
             cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
 
+            # Check if image cache is available for this file hash
+            # If not, try to download it from cloud storage
+            logger.info(f"Checking image cache for file hash: {file_hash}")
+            doc = fitz.open(str(pdf_file))
+            total_pages = len(doc)
+
+            # Try to download image cache if not already available locally
+            await self._image_cache.download_images_to_local_cache(
+                file_hash, total_pages
+            )
+
             # Check cache unless invalidate_cache is True
             cached_result = await self.cache.get(cache_key)
             if cached_result:
@@ -498,12 +509,9 @@ class VisionParser:
             chunk_size = MAX_CONCURRENT_TASKS
             all_pages: List[Dict] = []
             total_words = 0
-            total_pages = 0
 
-            # Get total pages in the PDF and process in chunks
-            doc = fitz.open(str(pdf_file))
+            # Process PDF in chunks equal to MAX_CONCURRENT_TASKS
             try:
-                total_pages = len(doc)
                 logger.info(f"PDF has {total_pages} pages")
 
                 # Process PDF in chunks equal to MAX_CONCURRENT_TASKS
@@ -537,6 +545,10 @@ class VisionParser:
 
             # Generate markdown output
             self.save_markdown_output(result)
+
+            # Upload any newly generated images to S3
+            image_cache_path = self._image_cache._get_local_cache_path(file_hash)
+            await self._image_cache.cache_images(image_cache_path, file_hash)
 
             return result
 
