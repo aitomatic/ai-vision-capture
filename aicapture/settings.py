@@ -33,6 +33,7 @@ class VisionModelProvider:
     azure_openai = "azure-openai"
     gemini = "gemini"
     openai_alike = "openai-alike"
+    anthropic_bedrock = "anthropic_bedrock"
 
 
 # Default vision model configuration
@@ -116,3 +117,17 @@ class AzureOpenAIVisionConfig(VisionModelConfig):
         self.validate("Azure OpenAI")
         validate_required_config("api_version", self.api_version, "Azure OpenAI")
         validate_required_config("api_base", self.api_base, "Azure OpenAI")
+
+
+class AnthropicAWSBedrockConfig(VisionModelConfig):
+    """Configuration for Anthropic Claude Vision models via AWS Bedrock."""
+
+    aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "dummy")
+    aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "dummy")
+    aws_session_token: Optional[str] = os.getenv("AWS_SESSION_TOKEN", None)
+    aws_region: str = os.getenv("AWS_REGION", "us-east-1")
+    aws_vpc_endpoint_url: str = os.getenv("AWS_BEDROCK_VPC_ENDPOINT_URL", "")
+    model: str = os.getenv(
+        "ANTHROPIC_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    )  # noqa
+    api_key: str = os.getenv("ANTHROPIC_BEDROCK_API_KEY", "dummy")  # dont need this

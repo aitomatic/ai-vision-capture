@@ -15,6 +15,7 @@ from PIL import Image
 
 from aicapture.settings import (
     USE_VISION,
+    AnthropicAWSBedrockConfig,
     AnthropicVisionConfig,
     AzureOpenAIVisionConfig,
     GeminiVisionConfig,
@@ -37,6 +38,8 @@ def create_default_vision_model() -> VisionModel:
             return GeminiVisionModel()
         elif USE_VISION == VisionModelProvider.azure_openai:
             return AzureOpenAIVisionModel()
+        elif USE_VISION == VisionModelProvider.anthropic_bedrock:
+            return AnthropicAWSBedrockVisionModel()
         else:
             error_msg = f"Unsupported vision model type: {USE_VISION}"
             logger.error(error_msg)
@@ -53,6 +56,7 @@ def is_vision_model_installed() -> bool:
         VisionModelProvider.openai,
         VisionModelProvider.gemini,
         VisionModelProvider.azure_openai,
+        VisionModelProvider.anthropic_bedrock,
     ]
 
 
@@ -553,3 +557,68 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
             )
 
         return cast(AsyncAzureOpenAI, self._aclient)
+
+
+class AnthropicAWSBedrockVisionModel(AnthropicVisionModel):
+    """Implementation for Anthropic Claude Vision models via AWS Bedrock.
+
+    Extends the standard AnthropicVisionModel but uses Bedrock client instead.
+    """
+
+    def __init__(
+        self,
+        model: str = AnthropicAWSBedrockConfig.model,
+        api_key: str = AnthropicAWSBedrockConfig.api_key,
+        **kwargs: Any,
+    ) -> None:
+        # Skip AnthropicVisionModel's __init__ and call VisionModel's __init__ directly
+        VisionModel.__init__(self, model=model, api_key=api_key, **kwargs)
+        self.aws_access_key_id = AnthropicAWSBedrockConfig.aws_access_key_id
+        self.aws_secret_access_key = AnthropicAWSBedrockConfig.aws_secret_access_key
+        self.aws_session_token = AnthropicAWSBedrockConfig.aws_session_token
+        self.aws_region = AnthropicAWSBedrockConfig.aws_region
+        self.aws_vpc_endpoint_url = AnthropicAWSBedrockConfig.aws_vpc_endpoint_url
+
+    @property
+    def client(self) -> Any:  # type: ignore
+        """Get synchronous Bedrock client."""
+        if self._client is None:
+            if self.aws_vpc_endpoint_url:
+                self._client = anthropic.AnthropicBedrock(
+                    aws_access_key=self.aws_access_key_id,
+                    aws_secret_key=self.aws_secret_access_key,
+                    aws_session_token=self.aws_session_token,
+                    aws_region=self.aws_region,
+                    base_url=self.aws_vpc_endpoint_url,
+                )
+            else:
+                self._client = anthropic.AnthropicBedrock(
+                    aws_access_key=self.aws_access_key_id,
+                    aws_secret_key=self.aws_secret_access_key,
+                    aws_session_token=self.aws_session_token,
+                    aws_region=self.aws_region,
+                )
+        return self._client
+
+    @property
+    def aclient(self) -> Any:  # type: ignore
+        """Get asynchronous Bedrock client."""
+        if self._aclient is None:
+            if self.aws_vpc_endpoint_url:
+                self._aclient = anthropic.AsyncAnthropicBedrock(
+                    aws_access_key=self.aws_access_key_id,
+                    aws_secret_key=self.aws_secret_access_key,
+                    aws_session_token=self.aws_session_token,
+                    aws_region=self.aws_region,
+                    base_url=self.aws_vpc_endpoint_url,
+                )
+            else:
+                self._aclient = anthropic.AsyncAnthropicBedrock(
+                    aws_access_key=self.aws_access_key_id,
+                    aws_secret_key=self.aws_secret_access_key,
+                    aws_session_token=self.aws_session_token,
+                    aws_region=self.aws_region,
+                )
+        return self._aclient
+
+    # Reusing all the image processing methods from the parent class
