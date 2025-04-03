@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from loguru import logger
 
@@ -104,3 +104,64 @@ async def get_file_from_s3_async(bucket: str, key: str) -> Optional[bytes]:
     except Exception as e:
         logger.error(f"Unexpected error reading from S3: {str(e)}")
         return None
+
+
+async def download_file_from_s3_async(
+    bucket: str, s3_key: str, local_path: str
+) -> bool:
+    """Download a file from S3 to a local path asynchronously.
+
+    Args:
+        bucket: S3 bucket name
+        s3_key: S3 key/path to the file
+        local_path: Local path to save the file to
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        s3_client = get_s3_client()
+
+        # Use run_in_executor to make the blocking download_file call non-blocking
+        await loop.run_in_executor(
+            None, lambda: s3_client.download_file(bucket, s3_key, local_path)
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error downloading {s3_key} from S3: {str(e)}")
+        return False
+
+
+async def list_objects_from_s3_async(bucket: str, prefix: str) -> List[Dict[str, Any]]:
+    """List objects in an S3 bucket with a given prefix asynchronously.
+
+    Args:
+        bucket: S3 bucket name
+        prefix: S3 prefix to list objects from
+
+    Returns:
+        List of object dictionaries containing Key, Size, etc.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        s3_client = get_s3_client()
+
+        # Use run_in_executor to make the blocking list_objects_v2 call non-blocking
+        response = await loop.run_in_executor(
+            None, lambda: s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        )
+
+        # Explicitly handle the typing
+        if "Contents" in response and isinstance(response["Contents"], list):
+            # Cast contents to the expected type
+            contents: List[Dict[str, Any]] = cast(
+                List[Dict[str, Any]], response["Contents"]
+            )
+            return contents
+
+        # Return empty list if no contents
+        return []
+    except Exception as e:
+        logger.error(f"Error listing objects from S3 with prefix {prefix}: {str(e)}")
+        return []

@@ -6,7 +6,6 @@ import json
 import os
 import time
 from asyncio import Semaphore
-from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -93,7 +92,7 @@ class VisionParser:
         max_concurrent_tasks: int = MAX_CONCURRENT_TASKS,
         image_quality: str = ImageQuality.DEFAULT,
         invalidate_cache: bool = False,
-        invalidate_image_cache: bool = False,
+        cloud_bucket: Optional[str] = None,
         prompt: str = DEFAULT_PROMPT,
     ):
         """
@@ -106,29 +105,27 @@ class VisionParser:
             max_concurrent_tasks (int): maximum concurrent API calls
             image_quality (str): Image quality setting (low/high)
             invalidate_cache (bool): If True, ignore cache and overwrite with new results
-            invalidate_image_cache (bool): If True, ignore image cache and regenerate images
             prompt (str): The instruction prompt to use for content extraction
         """
         self.vision_model = vision_model or create_default_vision_model()
         self.vision_model.image_quality = image_quality
         self._invalidate_cache = invalidate_cache
-        self._invalidate_image_cache = invalidate_image_cache
         self.prompt = prompt
         self.dpi = int(os.getenv("VISION_PARSER_DPI", "333"))
-
+        self.cloud_bucket = cloud_bucket
         if max_concurrent_tasks is not None:
             self.__class__._semaphore = Semaphore(max_concurrent_tasks)
 
-        # Initialize caches with only local cache by default
-        _file_cache = FileCache(cache_dir)
-        _image_cache = ImageCache(cache_dir)
-        # from aicapture.cache import S3Cache
-        # DXA_DATA_BUCKET = "your-s3-bucket"
-        # s3_cache = S3Cache(
-        #     bucket=DXA_DATA_BUCKET, prefix="production/images/cache-service"
-        # )
+        self._image_cache = ImageCache(cache_dir, cloud_bucket)
+        s3_cache = None
+        if self.cloud_bucket:
+            from aicapture.cache import S3Cache
+
+            s3_cache = S3Cache(
+                bucket=self.cloud_bucket, prefix="production/data/cache-documents"
+            )
         self.cache = TwoLayerCache(
-            file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache  # type: ignore
+            file_cache=FileCache(cache_dir), s3_cache=s3_cache, invalidate_cache=invalidate_cache  # type: ignore
         )
 
     @property
@@ -148,20 +145,52 @@ class VisionParser:
         if hasattr(self, "cache"):
             self.cache.invalidate_cache = value
 
-    @property
-    def invalidate_image_cache(self) -> bool:
-        """Get the invalidate_image_cache value."""
-        return self._invalidate_image_cache
-
-    @invalidate_image_cache.setter
-    def invalidate_image_cache(self, value: bool) -> None:
-        """
-        Set the invalidate_image_cache value.
+    async def _get_or_create_page_image(
+        self, doc: fitz.Document, page_idx: int, page_hash: str, file_hash: str
+    ) -> Image.Image:
+        """Get a page image from cache or create it if not cached.
 
         Args:
-            value (bool): Whether to invalidate the image cache
+            doc: The PyMuPDF document
+            page_idx: Zero-based page index
+            page_hash: Hash of the page content
+            file_hash: Hash of the PDF file
+
+        Returns:
+            PIL Image object of the page
         """
-        self._invalidate_image_cache = value
+        # Check if the file_hash directory exists in cache
+        cache_dir = self._image_cache._get_local_cache_path(file_hash)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check if this specific page is cached
+        page_image_path = cache_dir / f"{page_hash}.png"
+
+        if page_image_path.exists():
+            # Use cached image
+            logger.info(
+                f"Using cached image for page {page_idx+1} from {page_image_path}"
+            )
+            return Image.open(page_image_path)
+
+        # Generate the image if not cached
+        logger.info(f"Generating image for page {page_idx+1}")
+        page = doc[page_idx]
+        zoom = self.dpi / 72
+        matrix = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=matrix)
+
+        # Convert pixmap to PIL Image
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+        # Cache the image locally
+        try:
+            img.save(page_image_path, "PNG")
+            logger.info(f"Cached page image to {page_image_path}")
+        except Exception as e:
+            logger.error(f"Error caching page image: {e}")
+
+        return img
 
     def _validate_pdf(self, pdf_path: str) -> None:
         """
@@ -176,14 +205,27 @@ class VisionParser:
         if not str(pdf_path).lower().endswith(".pdf"):
             raise PDFValidationError("File must have a .pdf extension")
 
-    def _extract_text_from_pdf(self, pdf_path: str) -> List[str]:
-        """Extract text content from PDF using PyMuPDF."""
-        text_extractions = []
+    def _extract_text_from_pdf(self, pdf_path: str) -> List[Dict]:
+        """Extract text content and calculate page hashes from PDF using PyMuPDF.
+
+        Returns:
+            List of dictionaries with 'text' and 'hash' for each page
+        """
+        results = []
         with fitz.open(pdf_path) as doc:
-            for page in doc:
+            for page_idx, page in enumerate(doc):
+                # Extract text
                 text = page.get_text()
-                text_extractions.append(text)
-        return text_extractions
+
+                # Calculate page hash based on file hash, page number and text content
+                page_number = page_idx + 1
+                page_text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+                page_hash = f"p{page_number}_{page_text_hash}"
+
+                results.append(
+                    {"text": text, "hash": page_hash, "page_number": page_number}
+                )
+        return results
 
     def _make_user_message(self, text_content: str) -> str:
         """Create enhanced user message with text extraction reference."""
@@ -193,15 +235,11 @@ class VisionParser:
         self,
         image: Image.Image,
         page_number: int,
+        page_hash: str,
         text_content: str = "",
     ) -> Dict:
         """Process a single page asynchronously and return structured content."""
         try:
-            # Calculate hash for the image
-            img_byte_arr = BytesIO()
-            image.save(img_byte_arr, format="PNG")
-            page_hash = hashlib.sha256(img_byte_arr.getvalue()).hexdigest()
-
             logger.debug(f"Waiting for semaphore to process page {page_number}")
             # Process with vision model
             async with self.__class__._semaphore:
@@ -316,74 +354,85 @@ class VisionParser:
         doc: fitz.Document,
         chunk_start: int,
         chunk_end: int,
-        text_extractions: List[str],
+        page_extractions: List[Dict],
         partial_results: Dict[int, Dict],
         cache_key: str,
         all_pages: List[Dict],
+        file_hash: str,
     ) -> tuple[List[Dict], int]:
         """
         Process a specific chunk of pages from a PDF document.
-
-        This method:
-        1. Extracts images from the specified page range
-        2. Skips pages already in partial results
-        3. Processes the extracted images concurrently
-        4. Adds already processed pages from partial results
-        5. Properly cleans up resources even in case of errors
 
         Args:
             doc: The open PDF document
             chunk_start: Starting page index (0-based)
             chunk_end: Ending page index (exclusive)
-            text_extractions: Text extracted from PDF pages
+            page_extractions: Text and hash extracted from PDF pages
             partial_results: Previously processed pages
             cache_key: Cache key for the PDF file
             all_pages: Current list of processed pages
+            file_hash: Hash of the PDF file
 
         Returns:
             Tuple of (updated all_pages list, total words in this chunk)
         """
         logger.info(f"Processing chunk from page {chunk_start + 1} to {chunk_end}")
 
-        chunk_images = []
         total_words = 0
+        tasks = []
+        page_images = []
 
         try:
-            # Extract images for current chunk only
+            # Process each page in the chunk
             for page_idx in range(chunk_start, chunk_end):
+                page_number = page_idx + 1
+
                 # Skip if page is already in partial results
-                if page_idx + 1 in partial_results:
+                if page_number in partial_results:
                     logger.info(
-                        f"Page {page_idx + 1} already in partial results, skipping image extraction"
+                        f"Page {page_number} already in partial results, skipping"
                     )
                     continue
 
-                # Get the page as a pixmap with the specified DPI
-                page = doc[page_idx]
-                zoom = self.dpi / 72  # Convert DPI to zoom factor (72 is the base DPI)
-                matrix = fitz.Matrix(zoom, zoom)
-                pix = page.get_pixmap(matrix=matrix)
+                # Get page info with text and hash
+                page_info = page_extractions[page_idx]
+                page_hash = page_info["hash"]
+                text_content = page_info["text"]
 
-                # Convert pixmap to PIL Image
-                img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-                chunk_images.append((page_idx, img))
-
-            # Process all images in the chunk concurrently
-            if chunk_images:
-                batch_results, batch_words = await self._process_chunk_images(
-                    chunk_images, text_extractions
+                # Get the page image from cache or generate it
+                img = await self._get_or_create_page_image(
+                    doc, page_idx, page_hash, file_hash
                 )
-                total_words += batch_words
+                page_images.append(img)
+
+                # Create task to process the page
+                task = asyncio.create_task(
+                    self.process_page_async(img, page_number, page_hash, text_content)
+                )
+                tasks.append(task)
+
+            # Process all tasks concurrently
+            if tasks:
+                start_time = time.time()
+                batch_results = await asyncio.gather(*tasks)
+                duration = time.time() - start_time
+
+                # Calculate words in batch
+                batch_words = sum(
+                    len(page["page_content"].split()) for page in batch_results
+                )
+                logger.info(f"Completed batch in {duration:.2f} seconds")
 
                 # Add batch results to all pages
                 all_pages.extend(batch_results)
+                total_words += batch_words
 
                 # Save partial results after each batch
                 await self._save_partial_results(cache_key, all_pages)
 
         finally:
-            # Clean up chunk images to free memory (even if there was an error)
-            for _, img in chunk_images:
+            # Clean up page images to free memory
+            for img in page_images:
                 img.close()
 
         # Add already processed pages from partial results for this chunk
@@ -397,44 +446,6 @@ class VisionParser:
                 total_words += len(partial_results[page_number]["page_content"].split())
 
         return all_pages, total_words
-
-    async def _process_chunk_images(
-        self, chunk_images: List[tuple[int, Image.Image]], text_extractions: List[str]
-    ) -> tuple[List[Dict], int]:
-        """
-        Process a list of images extracted from PDF pages.
-
-        This method handles concurrent processing of all images in a chunk
-        using vision models and appropriate text context.
-
-        Args:
-            chunk_images: List of tuples containing (page_idx, PIL.Image)
-            text_extractions: Text extracted from PDF pages
-
-        Returns:
-            Tuple of (processed page results, total word count)
-        """
-        if not chunk_images:
-            return [], 0
-
-        tasks = []
-        for page_idx, image in chunk_images:
-            page_number = page_idx + 1
-            text_content = text_extractions[page_idx] if text_extractions else ""
-            task = asyncio.create_task(
-                self.process_page_async(image, page_number, text_content)
-            )
-            tasks.append(task)
-
-        start_time = time.time()
-        batch_results = await asyncio.gather(*tasks)
-        duration = time.time() - start_time
-
-        # Calculate words in batch
-        batch_words = sum(len(page["page_content"].split()) for page in batch_results)
-        logger.info(f"Completed batch in {duration:.2f} seconds")
-
-        return batch_results, batch_words
 
     async def process_pdf_async(self, pdf_path: str) -> Dict:
         """
@@ -475,9 +486,11 @@ class VisionParser:
             partial_results = await self._load_partial_results(cache_key)
             logger.info(f"Found {len(partial_results)} cached pages")
 
-            # Extract text content from PDF
-            logger.info(f"Extracting text content from PDF: {pdf_file}")
-            text_extractions = self._extract_text_from_pdf(str(pdf_file))
+            # Extract text content and page hashes from PDF
+            logger.info(
+                f"Extracting text content and calculating page hashes for {pdf_file}"
+            )
+            page_extractions = self._extract_text_from_pdf(str(pdf_file))
 
             # Process PDF in chunks to avoid memory issues with large PDFs
             logger.info(f"Processing PDF in chunks: {pdf_file}")
@@ -501,10 +514,11 @@ class VisionParser:
                         doc,
                         chunk_start,
                         chunk_end,
-                        text_extractions,
+                        page_extractions,
                         partial_results,
                         cache_key,
                         all_pages,
+                        file_hash,
                     )
                     total_words += chunk_words
             finally:
@@ -654,6 +668,7 @@ class VisionParser:
                 page_result = await self.process_page_async(
                     img,
                     page_number=1,
+                    page_hash=f"{file_hash}",
                     text_content="",  # No text content for direct image processing
                 )
 
