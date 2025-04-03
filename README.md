@@ -1,6 +1,6 @@
 # AI Vision Capture
 
-A powerful Python library for extracting and analyzing content from PDF documents using Vision Language Models (VLMs). This library provides a flexible and efficient way to process documents with support for multiple VLM providers including OpenAI, Anthropic Claude, Google Gemini, and Azure OpenAI.
+A powerful Python library for extracting and analyzing content from PDF, Image, and Video files using Vision Language Models (VLMs). This library provides a flexible and efficient way to process documents with support for multiple VLM providers including OpenAI, Anthropic Claude, Google Gemini, and Azure OpenAI.
 
 ## Features
 
@@ -113,7 +113,7 @@ dependencies:
 2. Use with OpenAI Vision:
 ```python
 from aicapture import VisionCapture
-from aicapture.vision_models import OpenAIVisionModel
+from aicapture import OpenAIVisionModel
 
 vision_model = OpenAIVisionModel(
     model="gpt-4o",
@@ -130,7 +130,7 @@ result = await capture.capture(
 
 3. Or use with Anthropic Claude:
 ```python
-from aicapture.vision_models import AnthropicVisionModel
+from aicapture import AnthropicVisionModel
 
 vision_model = AnthropicVisionModel(
     model="claude-3-sonnet-20240620",
