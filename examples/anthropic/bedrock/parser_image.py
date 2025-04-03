@@ -35,7 +35,7 @@ def main():
     )
 
     # Process the image
-    result = parser.process_image(image_path)
+    result = parser.process_file(image_path)
 
     # Print results
     print("\nProcessed Image Results via AWS Bedrock:")
