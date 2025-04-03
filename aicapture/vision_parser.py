@@ -81,7 +81,7 @@ class VisionParser:
     - Direct image file processing
     """
 
-    SUPPORTED_IMAGE_FORMATS = {'jpg', 'jpeg', 'png', 'tiff', 'tif', 'webp', 'bmp'}
+    SUPPORTED_IMAGE_FORMATS = {"jpg", "jpeg", "png", "tiff", "tif", "webp", "bmp"}
 
     # Class variable for global concurrency control
     _semaphore: Semaphore = Semaphore(MAX_CONCURRENT_TASKS)
@@ -140,7 +140,7 @@ class VisionParser:
             value (bool): Whether to invalidate the cache
         """
         self._invalidate_cache = value
-        if hasattr(self, 'cache'):
+        if hasattr(self, "cache"):
             self.cache.invalidate_cache = value
 
     @property
@@ -493,7 +493,7 @@ class VisionParser:
         Raises:
             ImageValidationError: If the file doesn't have a supported image extension
         """
-        ext = Path(image_path).suffix.lower().lstrip('.')
+        ext = Path(image_path).suffix.lower().lstrip(".")
         if ext not in self.SUPPORTED_IMAGE_FORMATS:
             raise ImageValidationError(
                 f"Unsupported image format: {ext}. Supported formats: {', '.join(self.SUPPORTED_IMAGE_FORMATS)}"
@@ -553,12 +553,12 @@ class VisionParser:
             # Load and optimize image
             with Image.open(image_file) as img:
                 # Convert to RGB if necessary
-                if img.mode in ('RGBA', 'LA'):
-                    background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode in ("RGBA", "LA"):
+                    background = Image.new("RGB", img.size, (255, 255, 255))
                     background.paste(img, mask=img.split()[-1])
                     img = background
-                elif img.mode not in ('RGB', 'L'):
-                    img = img.convert('RGB')
+                elif img.mode not in ("RGB", "L"):
+                    img = img.convert("RGB")
 
                 # Optimize image
                 img = self._optimize_image(img)
@@ -615,20 +615,28 @@ class VisionParser:
 
         return asyncio.run(_run())
 
+    def process_file(self, file_path: str) -> Dict:
+        """Process a file synchronously and return structured content."""
+        return asyncio.run(self.process_file_async(file_path))
+
+    async def process_file_async(self, file_path: str) -> Dict:
+        """Process a file asynchronously and return structured content."""
+        if file_path.lower().endswith(".pdf"):
+            return await self.process_pdf_async(file_path)
+        elif Path(file_path).suffix.lower().lstrip(".") in self.SUPPORTED_IMAGE_FORMATS:
+            return await self.process_image_async(file_path)
+        else:
+            logger.error(f"Unsupported file format: {file_path}")
+            return {}
+
     async def process_folder_async(self, folder_path: str) -> List[Dict]:
         """Process all PDF and image files in a folder asynchronously."""
         results = []
         for file in os.listdir(folder_path):
             file_path = os.path.join(folder_path, file)
             try:
-                if file.lower().endswith('.pdf'):
-                    result = await self.process_pdf_async(file_path)
-                    results.append(result)
-                elif any(
-                    file.lower().endswith(ext) for ext in self.SUPPORTED_IMAGE_FORMATS
-                ):
-                    result = await self.process_image_async(file_path)
-                    results.append(result)
+                result = await self.process_file_async(file_path)
+                results.append(result)
             except Exception as e:
                 logger.error(f"Error processing file {file}: {str(e)}")
                 continue
