@@ -1,0 +1,3 @@
+- add page_hash, and also file_hash to the metadata of document
+- function to chat with multiple images using image path
+- try to download image from s3 using the image path if it's not existing
