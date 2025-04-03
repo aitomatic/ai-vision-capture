@@ -16,6 +16,7 @@ def main():
 
     # Process a single PDF
     result = parser.process_pdf("tests/sample/pdfs/sample.pdf")
+    # result = parser.process_folder("tmp/terna")
 
     # result is a dictionary containing the parsed document
     # you can save the result to a json file
