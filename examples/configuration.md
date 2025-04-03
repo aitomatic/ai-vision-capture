@@ -31,6 +31,16 @@ export AZURE_OPENAI_API_URL=https://xxx.openai.azure.com
 export AZURE_OPENAI_API_VERSION=2025-02-15-preview
 ```
 
+### Anthropic AWS Bedrock
+```bash
+export USE_VISION=anthropic_bedrock
+export ANTHROPIC_BEDROCK_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+export AWS_ACCESS_KEY_ID=your_aws_access_key_id
+export AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+export AWS_REGION=your_aws_region
+export AWS_BEDROCK_VPC_ENDPOINT_URL=your_aws_vpc_endpoint_url
+```
+
 ### Performance Settings
 ```bash
 # Concurrent Processing

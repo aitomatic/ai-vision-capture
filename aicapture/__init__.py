@@ -7,6 +7,7 @@ from aicapture.cache import FileCache, ImageCache, TwoLayerCache
 from aicapture.settings import ImageQuality
 from aicapture.vid_capture import VidCapture, VideoConfig, VideoValidationError
 from aicapture.vision_models import (
+    AnthropicAWSBedrockVisionModel,
     AnthropicVisionModel,
     AzureOpenAIVisionModel,
     GeminiVisionModel,
@@ -28,6 +29,7 @@ __all__ = [
     "OpenAIVisionModel",
     "GeminiVisionModel",
     "AnthropicVisionModel",
+    "AnthropicAWSBedrockVisionModel",
     "AzureOpenAIVisionModel",
     # Settings
     "ImageQuality",
