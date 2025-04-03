@@ -122,6 +122,11 @@ class VisionParser:
         # Initialize caches with only local cache by default
         _file_cache = FileCache(cache_dir)
         _image_cache = ImageCache(cache_dir)
+        # from aicapture.cache import S3Cache
+        # DXA_DATA_BUCKET = "your-s3-bucket"
+        # s3_cache = S3Cache(
+        #     bucket=DXA_DATA_BUCKET, prefix="production/images/cache-service"
+        # )
         self.cache = TwoLayerCache(
             file_cache=_file_cache, s3_cache=None, invalidate_cache=invalidate_cache  # type: ignore
         )
@@ -306,88 +311,166 @@ class VisionParser:
 
         return pdf_file, file_hash
 
-    async def _process_batch(
+    async def _process_pdf_chunk(  # noqa
         self,
-        batch: List[Image.Image],
-        start_idx: int,
+        doc: fitz.Document,
+        chunk_start: int,
+        chunk_end: int,
         text_extractions: List[str],
         partial_results: Dict[int, Dict],
+        cache_key: str,
+        all_pages: List[Dict],
     ) -> tuple[List[Dict], int]:
-        """Process a batch of pages."""
-        tasks = []
-        pages = []
+        """
+        Process a specific chunk of pages from a PDF document.
+
+        This method:
+        1. Extracts images from the specified page range
+        2. Skips pages already in partial results
+        3. Processes the extracted images concurrently
+        4. Adds already processed pages from partial results
+        5. Properly cleans up resources even in case of errors
+
+        Args:
+            doc: The open PDF document
+            chunk_start: Starting page index (0-based)
+            chunk_end: Ending page index (exclusive)
+            text_extractions: Text extracted from PDF pages
+            partial_results: Previously processed pages
+            cache_key: Cache key for the PDF file
+            all_pages: Current list of processed pages
+
+        Returns:
+            Tuple of (updated all_pages list, total words in this chunk)
+        """
+        logger.info(f"Processing chunk from page {chunk_start + 1} to {chunk_end}")
+
+        chunk_images = []
         total_words = 0
 
-        for page_number, image in enumerate(batch, start_idx + 1):
-            # Skip if page is already processed
-            if page_number in partial_results:
-                logger.info(f"Using cached result for page {page_number}")
-                pages.append(partial_results[page_number])
-                total_words += len(partial_results[page_number]["page_content"].split())
-                continue
+        try:
+            # Extract images for current chunk only
+            for page_idx in range(chunk_start, chunk_end):
+                # Skip if page is already in partial results
+                if page_idx + 1 in partial_results:
+                    logger.info(
+                        f"Page {page_idx + 1} already in partial results, skipping image extraction"
+                    )
+                    continue
 
-            text_content = text_extractions[page_number - 1] if text_extractions else ""
+                # Get the page as a pixmap with the specified DPI
+                page = doc[page_idx]
+                zoom = self.dpi / 72  # Convert DPI to zoom factor (72 is the base DPI)
+                matrix = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=matrix)
+
+                # Convert pixmap to PIL Image
+                img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                chunk_images.append((page_idx, img))
+
+            # Process all images in the chunk concurrently
+            if chunk_images:
+                batch_results, batch_words = await self._process_chunk_images(
+                    chunk_images, text_extractions
+                )
+                total_words += batch_words
+
+                # Add batch results to all pages
+                all_pages.extend(batch_results)
+
+                # Save partial results after each batch
+                await self._save_partial_results(cache_key, all_pages)
+
+        finally:
+            # Clean up chunk images to free memory (even if there was an error)
+            for _, img in chunk_images:
+                img.close()
+
+        # Add already processed pages from partial results for this chunk
+        for page_idx in range(chunk_start, chunk_end):
+            page_number = page_idx + 1
+            if page_number in partial_results and not any(
+                p["page_number"] == page_number for p in all_pages
+            ):
+                logger.info(f"Adding cached result for page {page_number}")
+                all_pages.append(partial_results[page_number])
+                total_words += len(partial_results[page_number]["page_content"].split())
+
+        return all_pages, total_words
+
+    async def _process_chunk_images(
+        self, chunk_images: List[tuple[int, Image.Image]], text_extractions: List[str]
+    ) -> tuple[List[Dict], int]:
+        """
+        Process a list of images extracted from PDF pages.
+
+        This method handles concurrent processing of all images in a chunk
+        using vision models and appropriate text context.
+
+        Args:
+            chunk_images: List of tuples containing (page_idx, PIL.Image)
+            text_extractions: Text extracted from PDF pages
+
+        Returns:
+            Tuple of (processed page results, total word count)
+        """
+        if not chunk_images:
+            return [], 0
+
+        tasks = []
+        for page_idx, image in chunk_images:
+            page_number = page_idx + 1
+            text_content = text_extractions[page_idx] if text_extractions else ""
             task = asyncio.create_task(
                 self.process_page_async(image, page_number, text_content)
             )
             tasks.append(task)
 
-        if tasks:
-            start_time = time.time()
-            batch_results = await asyncio.gather(*tasks)
-            duration = time.time() - start_time
+        start_time = time.time()
+        batch_results = await asyncio.gather(*tasks)
+        duration = time.time() - start_time
 
-            pages.extend(batch_results)
-            total_words += sum(
-                len(page["page_content"].split()) for page in batch_results
-            )
-            logger.info(f"Completed batch in {duration:.2f} seconds")
+        # Calculate words in batch
+        batch_words = sum(len(page["page_content"].split()) for page in batch_results)
+        logger.info(f"Completed batch in {duration:.2f} seconds")
 
-        return pages, total_words
-
-    async def _compile_results(  # noqa
-        self,
-        pdf_file: Path,
-        cache_key: str,
-        pages: List[Dict],
-        total_words: int,
-        total_pages: int,
-    ) -> Dict:
-        """Compile final results and clean up temporary files."""
-        # Sort pages by page number (as integer) to ensure correct order
-        pages.sort(key=lambda x: int(x["page_number"]))
-
-        # Clean up partial results file
-        partial_cache = self._get_partial_cache_path(cache_key)
-        if partial_cache.exists():
-            partial_cache.unlink()
-
-        # Prepare final output
-        return {
-            "file_object": {
-                "file_name": pdf_file.name,
-                "cache_key": cache_key,
-                "total_pages": total_pages,
-                "total_words": total_words,
-                "file_full_path": str(pdf_file.absolute()),
-                "pages": pages,
-            }
-        }
+        return batch_results, batch_words
 
     async def process_pdf_async(self, pdf_path: str) -> Dict:
-        """Process a PDF file asynchronously and return structured content."""
+        """
+        Process a PDF file asynchronously and return structured content.
 
-        # Initial validation and setup
-        pdf_file, file_hash = await self._validate_and_setup(pdf_path)
-        cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
+        Handles loading, processing, and caching of PDF document contents
+        using vision models to extract and structure the information.
+
+        Args:
+            pdf_path: Path to the PDF file to process
+
+        Returns:
+            A dictionary containing the structured content of the PDF
+
+        Raises:
+            FileNotFoundError: If the PDF file doesn't exist
+            PDFValidationError: If the file is not a valid PDF
+            Exception: For other processing errors
+        """
+        pdf_file: Optional[Path] = None
+        file_hash: Optional[str] = None
+        cache_key: Optional[str] = None
+        doc = None
 
         try:
+            # Initial validation and setup
+            pdf_file, file_hash = await self._validate_and_setup(pdf_path)
+            cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
+
             # Check cache unless invalidate_cache is True
             cached_result = await self.cache.get(cache_key)
             if cached_result:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)
                 return cached_result
+
             # Load any partial results
             partial_results = await self._load_partial_results(cache_key)
             logger.info(f"Found {len(partial_results)} cached pages")
@@ -396,52 +479,45 @@ class VisionParser:
             logger.info(f"Extracting text content from PDF: {pdf_file}")
             text_extractions = self._extract_text_from_pdf(str(pdf_file))
 
-            # Convert PDF to images using PyMuPDF
-            logger.info(f"Converting PDF to images: {pdf_file}")
-            images = []
-            with fitz.open(str(pdf_file)) as doc:
-                for page in doc:
-                    # Get the page as a pixmap with the specified DPI
-                    zoom = (
-                        self.dpi / 72
-                    )  # Convert DPI to zoom factor (72 is the base DPI)
-                    matrix = fitz.Matrix(zoom, zoom)
-                    pix = page.get_pixmap(matrix=matrix)
+            # Process PDF in chunks to avoid memory issues with large PDFs
+            logger.info(f"Processing PDF in chunks: {pdf_file}")
 
-                    # Convert pixmap to PIL Image
-                    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-                    images.append(img)
-
-            logger.debug(f"PDF converted to {len(images)} images")
-
-            # Cache the images if not invalidating image cache
-            # if not self.invalidate_image_cache:
-            #     logger.info(f"Caching {len(images)} images for {cache_key}")
-            #     await self.image_cache.cache_images(images, cache_key)
-
-            # Process pages in batches
-            batch_size = MAX_CONCURRENT_TASKS
-            all_pages = []
+            chunk_size = MAX_CONCURRENT_TASKS
+            all_pages: List[Dict] = []
             total_words = 0
+            total_pages = 0
 
-            for i in range(0, len(images), batch_size):
-                batch = images[i : i + batch_size]
-                pages, words = await self._process_batch(
-                    batch, i, text_extractions, partial_results
-                )
-                all_pages.extend(pages)
-                total_words += words
-                await self._save_partial_results(cache_key, all_pages)
+            # Get total pages in the PDF and process in chunks
+            doc = fitz.open(str(pdf_file))
+            try:
+                total_pages = len(doc)
+                logger.info(f"PDF has {total_pages} pages")
 
-            # Clean up images
-            for image in images:
-                image.close()
+                # Process PDF in chunks equal to MAX_CONCURRENT_TASKS
+                for chunk_start in range(0, total_pages, chunk_size):
+                    chunk_end = min(chunk_start + chunk_size, total_pages)
+
+                    all_pages, chunk_words = await self._process_pdf_chunk(
+                        doc,
+                        chunk_start,
+                        chunk_end,
+                        text_extractions,
+                        partial_results,
+                        cache_key,
+                        all_pages,
+                    )
+                    total_words += chunk_words
+            finally:
+                # Ensure the document is closed even if processing fails
+                if doc:
+                    doc.close()
 
             # Compile final results
             result = await self._compile_results(
-                pdf_file, cache_key, all_pages, total_words, len(images)
+                pdf_file, cache_key, all_pages, total_words, total_pages
             )
 
+            # Cache the results
             logger.info("Saving results to cache")
             await self.cache.set(cache_key, result)
 
@@ -450,8 +526,14 @@ class VisionParser:
 
             return result
 
+        except FileNotFoundError:
+            logger.error(f"PDF file not found: {pdf_path}")
+            raise
+        except PDFValidationError as e:
+            logger.error(f"PDF validation failed for {pdf_path}: {str(e)}")
+            raise
         except Exception as e:
-            logger.error(f"Error processing PDF {pdf_file}: {str(e)}")
+            logger.error(f"Error processing PDF {pdf_path}: {str(e)}")
             raise
 
     def process_pdf(self, pdf_path: str) -> Dict:
@@ -526,6 +608,11 @@ class VisionParser:
 
         Returns:
             Dict: Structured content following the same schema as PDF processing
+
+        Raises:
+            FileNotFoundError: If the image file doesn't exist
+            ImageValidationError: If the image format is not supported
+            Exception: For other processing errors
         """
         # Initial validation and setup
         image_file = Path(image_path)
@@ -591,6 +678,12 @@ class VisionParser:
 
             return result
 
+        except FileNotFoundError:
+            logger.error(f"Image file not found: {image_file}")
+            raise
+        except ImageValidationError as e:
+            logger.error(f"Image validation failed for {image_file}: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Error processing image {image_file}: {str(e)}")
             raise
@@ -629,15 +722,81 @@ class VisionParser:
             logger.error(f"Unsupported file format: {file_path}")
             return {}
 
+    def process_folder(self, folder_path: str) -> List[Dict]:
+        """Process all PDF and image files in a folder synchronously."""
+        return asyncio.run(self.process_folder_async(folder_path))
+
     async def process_folder_async(self, folder_path: str) -> List[Dict]:
-        """Process all PDF and image files in a folder asynchronously."""
+        """Process all PDF and image files in a folder asynchronously.
+
+        Args:
+            folder_path (str): Path to the folder containing files to process
+
+        Returns:
+            List[Dict]: List of processed results
+
+        Raises:
+            FileNotFoundError: If the folder doesn't exist
+        """
+        folder = Path(folder_path)
+        if not folder.exists() or not folder.is_dir():
+            logger.error(f"Folder not found or not a directory: {folder_path}")
+            raise FileNotFoundError(
+                f"Folder not found or not a directory: {folder_path}"
+            )
+
         results = []
-        for file in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, file)
+
+        for file_path in folder.iterdir():
             try:
-                result = await self.process_file_async(file_path)
-                results.append(result)
+                if file_path.is_file():
+                    if file_path.suffix.lower() == '.pdf':
+                        logger.info(f"Processing PDF file: {file_path.name}")
+                        result = await self.process_pdf_async(str(file_path))
+                        results.append(result)
+                    elif (
+                        file_path.suffix.lower().lstrip('.')
+                        in self.SUPPORTED_IMAGE_FORMATS
+                    ):
+                        logger.info(f"Processing image file: {file_path.name}")
+                        result = await self.process_image_async(str(file_path))
+                        results.append(result)
+                    else:
+                        logger.debug(f"Skipping unsupported file: {file_path.name}")
             except Exception as e:
-                logger.error(f"Error processing file {file}: {str(e)}")
+                logger.error(f"Error processing file {file_path.name}: {str(e)}")
                 continue
+
+        logger.info(
+            f"Completed processing folder: {folder_path} - Processed {len(results)} files"
+        )
         return results
+
+    async def _compile_results(  # noqa
+        self,
+        pdf_file: Path,
+        cache_key: str,
+        pages: List[Dict],
+        total_words: int,
+        total_pages: int,
+    ) -> Dict:
+        """Compile final results and clean up temporary files."""
+        # Sort pages by page number (as integer) to ensure correct order
+        pages.sort(key=lambda x: int(x["page_number"]))
+
+        # Clean up partial results file
+        partial_cache = self._get_partial_cache_path(cache_key)
+        if partial_cache.exists():
+            partial_cache.unlink()
+
+        # Prepare final output
+        return {
+            "file_object": {
+                "file_name": pdf_file.name,
+                "cache_key": cache_key,
+                "total_pages": total_pages,
+                "total_words": total_words,
+                "file_full_path": str(pdf_file.absolute()),
+                "pages": pages,
+            }
+        }
