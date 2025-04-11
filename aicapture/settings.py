@@ -79,9 +79,9 @@ class AnthropicVisionConfig(VisionModelConfig):
 class OpenAIVisionConfig(VisionModelConfig):
     """Configuration for OpenAI GPT-4 Vision models."""
 
-    api_key: str = os.getenv("OPENAI_API_KEY", "")
-    model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
-    api_base: str = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+    api_key: str = os.getenv("OPENAI_VISION_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    model: str = os.getenv("OPENAI_VISION_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4o")
+    api_base: str = os.getenv("OPENAI_VISION_BASE_URL") or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "8000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
 
