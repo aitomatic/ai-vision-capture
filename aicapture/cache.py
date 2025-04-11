@@ -250,24 +250,24 @@ class TwoLayerCache:
         self.invalidate_cache = invalidate_cache
 
     async def get(self, key: str) -> Optional[Dict[str, Any]]:
-        """Get an item from the cache, checking file cache first then S3."""
+        """Get an item from the cache, checking S3 cache first then file cache."""
         if self.invalidate_cache:
             return None
 
-        # Check file cache first
-        result = self.file_cache.get(key)
-        if result:
-            logger.info("Found result in file cache")
-            return result
-
-        # Check S3 cache if available
+        # Check S3 cache first if available
         if self.s3_cache:
             result = await self.s3_cache.aget(key)
             if result:
                 # Save to file cache for future use
-                logger.info("Saving S3 result to file cache")
+                logger.info("Found result in S3 cache, saving to file cache")
                 self.file_cache.set(key, result)
                 return result
+
+        # Fall back to file cache if S3 cache misses or is not available
+        result = self.file_cache.get(key)
+        if result:
+            logger.info("Found result in file cache")
+            return result
 
         return None
 
