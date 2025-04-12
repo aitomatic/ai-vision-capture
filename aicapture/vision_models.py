@@ -84,7 +84,8 @@ class VisionModel(ABC):
         logger.debug(
             f"Using {self.__class__.__name__}\n"
             f"API Key: {mask_sensitive_string(self.api_key)}\n"
-            f"API Base: {self.api_base}"
+            f"API Base: {self.api_base}\n"
+            f"Model: {self.model}\n"
         )
 
         if not self.api_key:
