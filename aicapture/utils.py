@@ -102,7 +102,7 @@ async def get_file_from_s3_async(bucket: str, key: str) -> Optional[bytes]:
         )
         return await loop.run_in_executor(None, lambda: response["Body"].read())
     except Exception as e:
-        logger.error(f"Unexpected error reading from S3: {str(e)}")
+        logger.debug(f"Could not get file from S3: {str(e)}")
         return None
 
 

@@ -1,16 +1,16 @@
-from aicapture import OpenAIVisionModel, VisionParser
+from aicapture import GeminiVisionModel, VisionParser
 
 
 def main():
     # Initialize OpenAI vision model (API key will be loaded from .env)
-    vision_model = OpenAIVisionModel()
+    vision_model = GeminiVisionModel()
 
     image_path = "tests/sample/images/logic.png"
 
     # Initialize parser with a specific prompt for logical diagram analysis
     parser = VisionParser(
         vision_model=vision_model,
-        cache_dir="./.vision_cache/openai",
+        cache_dir="./.vision_cache/gemini",
         invalidate_cache=True,  # Set to True to force reprocessing
     )
 

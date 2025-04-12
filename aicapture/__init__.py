@@ -14,6 +14,7 @@ from aicapture.vision_models import (
     OpenAIVisionModel,
     VisionModel,
     create_default_vision_model,
+    is_vision_model_installed,
 )
 from aicapture.vision_parser import VisionParser
 
@@ -42,4 +43,5 @@ __all__ = [
     "VideoConfig",
     "VideoValidationError",
     "create_default_vision_model",
+    "is_vision_model_installed",
 ]
