@@ -482,9 +482,10 @@ class VisionParser:
             total_pages = len(doc)
 
             # Try to download image cache if not already available locally
-            await self._image_cache.download_images_to_local_cache(
-                file_hash, total_pages
-            )
+            # skip for now to save time and disk space
+            # await self._image_cache.download_images_to_local_cache(
+            #     file_hash, total_pages
+            # )
 
             # Check cache unless invalidate_cache is True
             cached_result = await self.cache.get(cache_key)
