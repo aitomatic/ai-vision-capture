@@ -231,5 +231,81 @@ class VidCapture:
         if not frames:
             raise ValueError(f"No frames could be extracted from {video_path}")
 
-        # Analyze the frames
         return self.capture(prompt, frames, **kwargs)
+
+    async def process_video_async(
+        self, video_path: str, prompt: str, **kwargs: Any
+    ) -> str:
+        """
+        Asynchronous wrapper for process_video.
+        """
+        frames, _ = self.extract_frames(video_path)
+
+        if not frames:
+            raise ValueError(f"No frames could be extracted from {video_path}")
+
+        return await self.capture_async(prompt, frames, **kwargs)
+
+    @classmethod
+    def analyze_video(cls, video_path: str) -> dict:
+        """
+        Analyze a video and return video metadata.
+
+        Args:
+            video_path: Path to the video file
+
+        Returns:
+            Dictionary containing video metadata (resolution, duration, fps, etc.)
+            or error information if analysis fails.
+        """
+        # Check if file exists
+        if not Path(video_path).exists():
+            return {
+                "status": "error",
+                "message": f"Video file not found: {video_path}",
+            }
+
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise VideoValidationError("Failed to open video file")
+
+            # Extract metadata
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            duration = frame_count / fps
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            codec_int = int(cap.get(cv2.CAP_PROP_FOURCC))
+
+            # Convert codec integer to string representation
+            codec = "".join([chr((codec_int >> 8 * i) & 0xFF) for i in range(4)])
+
+            return {
+                "status": "success",
+                "duration": duration,
+                "fps": fps,
+                "frame_count": frame_count,
+                "width": width,
+                "height": height,
+                "resolution": f"{width}x{height}",
+                "codec": codec,
+            }
+        except VideoValidationError as e:
+            return {
+                "status": "error",
+                "message": str(e),
+            }
+        except cv2.error as e:
+            return {
+                "status": "error",
+                "message": f"OpenCV error: {str(e)}",
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Unexpected error: {str(e)}",
+            }
+        finally:
+            if 'cap' in locals() and cap is not None:
+                cap.release()

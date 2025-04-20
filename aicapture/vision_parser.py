@@ -6,8 +6,9 @@ import json
 import os
 import time
 from asyncio import Semaphore
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import fitz  # type: ignore
 from loguru import logger
@@ -548,8 +549,8 @@ class VisionParser:
             self.save_markdown_output(result)
 
             # Upload any newly generated images to S3
-            image_cache_path = self._image_cache._get_local_cache_path(file_hash)
-            await self._image_cache.cache_images(image_cache_path, file_hash)
+            # image_cache_path = self._image_cache._get_local_cache_path(file_hash)
+            # await self._image_cache.cache_images(image_cache_path, file_hash)
 
             return result
 
@@ -828,3 +829,72 @@ class VisionParser:
                 "pages": pages,
             }
         }
+
+    @classmethod
+    async def analyze_pdf_file(cls, pdf_path: str) -> Dict[str, Any]:
+        """
+        Analyze a PDF file and return metadata information.
+
+        Args:
+            pdf_path: Path to the PDF file
+
+        Returns:
+            Dictionary containing PDF metadata (page count, size, version, etc.)
+            or error information if analysis fails.
+        """
+        # Check if file exists
+        if not Path(pdf_path).exists():
+            return {
+                "status": "error",
+                "message": f"PDF file not found: {pdf_path}",
+            }
+
+        try:
+            # Validate file extension
+            if not str(pdf_path).lower().endswith(".pdf"):
+                raise PDFValidationError("File must have a .pdf extension")
+
+            # Get file stats
+            file_stat = Path(pdf_path).stat()
+            file_size = file_stat.st_size
+            modification_time = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+
+            # Extract PDF metadata
+            metadata = {"file_size_bytes": file_size, "modified_at": modification_time}
+
+            with fitz.open(pdf_path) as doc:
+                number_of_pages = len(doc)
+                metadata["number_of_pages"] = number_of_pages
+
+                # Try to extract PDF version and metadata if available
+                if doc.metadata:
+                    for key, value in doc.metadata.items():
+                        if value:
+                            metadata[key.lower()] = value
+
+                # Get page sizes
+                if number_of_pages > 0:
+                    first_page = doc[0]
+                    metadata["page_width"] = first_page.rect.width
+                    metadata["page_height"] = first_page.rect.height
+                    metadata["page_size"] = (
+                        f"{first_page.rect.width}x{first_page.rect.height}"
+                    )
+
+            return {"status": "success", **metadata}
+
+        except PDFValidationError as e:
+            return {
+                "status": "error",
+                "message": str(e),
+            }
+        except fitz.FileDataError as e:
+            return {
+                "status": "error",
+                "message": f"Invalid PDF file: {str(e)}",
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Unexpected error analyzing PDF: {str(e)}",
+            }
