@@ -203,11 +203,11 @@ class S3Cache(AsyncCacheInterface):
             s3_path = self._get_s3_path(key)
             data_bytes = json.dumps(value).encode("utf-8")
 
-            logger.info(f"Uploading to S3: s3://{self.bucket}/{s3_path}")
+            # logger.info(f"Uploading to S3: s3://{self.bucket}/{s3_path}")
             await upload_file_to_s3_async(
                 bucket=self.bucket, file_or_data=data_bytes, s3_path=s3_path
             )
-            logger.info(f"Successfully uploaded to S3: s3://{self.bucket}/{s3_path}")
+            # logger.info(f"Successfully uploaded to S3: s3://{self.bucket}/{s3_path}")
         except Exception as e:
             logger.error(f"Error setting value in S3 cache: {e}")
             # Don't raise the exception as we want to continue even if S3 fails

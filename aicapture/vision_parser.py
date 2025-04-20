@@ -95,6 +95,7 @@ class VisionParser:
         invalidate_cache: bool = False,
         cloud_bucket: Optional[str] = None,
         prompt: str = DEFAULT_PROMPT,
+        dpi: int = int(os.getenv("VISION_PARSER_DPI", "333")),
     ):
         """
         Initialize the VisionParser.
@@ -112,7 +113,7 @@ class VisionParser:
         self.vision_model.image_quality = image_quality
         self._invalidate_cache = invalidate_cache
         self.prompt = prompt
-        self.dpi = int(os.getenv("VISION_PARSER_DPI", "333"))
+        self.dpi = dpi
         self.cloud_bucket = cloud_bucket
         if max_concurrent_tasks is not None:
             self.__class__._semaphore = Semaphore(max_concurrent_tasks)
@@ -249,7 +250,7 @@ class VisionParser:
                 )
                 enhanced_prompt = self._make_user_message(text_content)
 
-                content = await self.vision_model.aprocess_image(
+                content = await self.vision_model.process_image_async(
                     image,
                     prompt=enhanced_prompt,
                 )

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Any, Dict, List, Optional, Union, cast
 
 from loguru import logger
@@ -7,7 +8,16 @@ from loguru import logger
 def get_s3_client() -> Any:
     import boto3  # type: ignore
 
-    return boto3.client("s3")
+    if os.getenv("USE_MINIO", "false").lower() == "true":
+        return boto3.client(
+            "s3",
+            endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
+            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
+            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
+            config=boto3.session.Config(signature_version="s3v4"),
+        )
+    else:
+        return boto3.client("s3")
 
 
 def ensure_bucket_exists(bucket_name: str) -> None:
@@ -22,6 +32,14 @@ def ensure_bucket_exists(bucket_name: str) -> None:
         except Exception as e:
             logger.error(f"Could not create bucket {bucket_name}: {e}")
             raise
+
+
+# Create default buckets when using Minio
+if os.getenv("USE_MINIO", "false").lower() == "true":
+    # Get bucket name from environment or use a default
+    default_bucket = os.getenv("DXA_DATA_BUCKET", "test-bucket-local")
+    ensure_bucket_exists(default_bucket)
+    logger.info("Using MinIO for vision cache")
 
 
 async def list_s3_files(bucket: str, prefix: str) -> List[str]:
@@ -68,6 +86,7 @@ async def upload_file_to_s3_async(
                     Bucket=bucket, Key=s3_path, Body=file_or_data
                 ),
             )
+        logger.info("Uploaded successfully")
     except Exception as e:
         logger.error(f"Error uploading to S3: {e}")
 

@@ -193,7 +193,7 @@ class VidCapture:
         print(f"Analyzing {len(images)} images with vision model")
 
         # Process the images with the vision model
-        result = await self.vision_model.aprocess_image(
+        result = await self.vision_model.process_image_async(
             image=images, prompt=prompt, **kwargs
         )
 
