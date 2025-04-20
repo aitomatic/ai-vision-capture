@@ -273,14 +273,16 @@ class TwoLayerCache:
 
     async def set(self, key: str, value: Dict[str, Any]) -> None:
         """Set an item in both file and S3 caches."""
+        logger.warning(f"Saving to cache: {key}")
+
         try:
             # Save to file cache first
-            logger.info("Saving to file cache")
+            logger.debug("Saving to file cache")
             self.file_cache.set(key, value)
 
             # Save to S3 if available
             if self.s3_cache:
-                logger.info("Saving to S3 cache")
+                logger.debug("Saving to S3 cache")
                 await self.s3_cache.aset(key, value)
         except Exception as e:
             logger.error(f"Error in cache set operation: {e}")

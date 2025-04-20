@@ -5,6 +5,7 @@ Simple video capture module for extracting frames from videos.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
@@ -12,6 +13,8 @@ from typing import Any, List, Optional, Tuple
 import cv2
 import numpy as np
 from PIL import Image
+
+from aicapture.cache import FileCache, HashUtils, S3Cache, TwoLayerCache
 
 # Fix circular import by importing directly from vision_models
 from aicapture.vision_models import VisionModel, create_default_vision_model
@@ -26,6 +29,8 @@ class VideoConfig:
     supported_formats: tuple = (".mp4", ".avi", ".mov", ".mkv")
     target_frame_size: tuple = (768, 768)  # Target size for resized frames
     resize_frames: bool = True
+    cache_dir: Optional[str] = None  # Directory for caching results
+    cloud_bucket: Optional[str] = None  # S3 bucket for cloud caching
 
 
 class VideoValidationError(Exception):
@@ -36,13 +41,26 @@ class VideoValidationError(Exception):
 
 class VidCapture:
     """
-    Simple utility for extracting frames from video files.
+    Simple utility for extracting frames from video files and analyzing them.
+
+    Features:
+    - Extracts frames from video files at specified rates
+    - Analyzes frames with a vision model
+    - Provides caching to avoid re-processing the same video with the same prompt
+
+    The cache key is generated based on:
+    - The SHA-256 hash of the video file
+    - The SHA-256 hash of the prompt
+    - The frame extraction rate
+
+    Both local file caching and S3 cloud caching are supported.
     """
 
     def __init__(
         self,
         config: Optional[VideoConfig] = None,
         vision_model: Optional[VisionModel] = None,
+        invalidate_cache: bool = False,
     ):
         """
         Initialize VideoCapture with configuration.
@@ -50,9 +68,27 @@ class VidCapture:
         Args:
             config: Configuration for video processing
             vision_model: Vision model for image analysis (created if None)
+            invalidate_cache: If True, bypass cache for reads
         """
         self.config = config or VideoConfig()
         self.vision_model = vision_model or create_default_vision_model()
+        self.invalidate_cache = invalidate_cache
+
+        # Initialize file cache
+        cache_dir = self.config.cache_dir or "tmp/.vid_capture_cache"
+        file_cache = FileCache(cache_dir=cache_dir)
+
+        # Initialize S3 cache if bucket is provided
+        s3_cache = None
+        if self.config.cloud_bucket:
+            s3_cache = S3Cache(
+                bucket=self.config.cloud_bucket, prefix="production/video_results"
+            )
+
+        # Set up two-layer cache
+        self.cache = TwoLayerCache(
+            file_cache=file_cache, s3_cache=s3_cache, invalidate_cache=invalidate_cache
+        )
 
     def _validate_video(self, video_path: str) -> None:
         """
@@ -213,6 +249,89 @@ class VidCapture:
         """
         return asyncio.run(self.capture_async(prompt, images, **kwargs))
 
+    def _get_cache_key(self, video_path: str, prompt: str) -> Optional[str]:
+        """
+        Generate a cache key from video file hash, prompt, and frame rate.
+
+        Args:
+            video_path: Path to the video file
+            prompt: Instruction prompt for the vision model
+
+        Returns:
+            Cache key or None if generation fails
+        """
+        try:
+            # Calculate file hash
+            file_hash = HashUtils.calculate_file_hash(video_path)
+
+            # Create prompt hash
+            prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+            # Create cache key with frame rate
+            return f"{file_hash}_{prompt_hash}_{self.config.frame_rate}"
+        except Exception as e:
+            print(f"Failed to generate cache key: {str(e)}")
+            return None
+
+    async def _get_from_cache_async(self, cache_key: str) -> Optional[str]:
+        """
+        Try to get a result from the cache asynchronously.
+
+        Args:
+            cache_key: The cache key to look up
+
+        Returns:
+            Cached result or None if not found
+        """
+        if not cache_key or self.invalidate_cache:
+            return None
+
+        try:
+            cached_result = await self.cache.get(cache_key)
+            if cached_result and "result" in cached_result:
+                print(f"Using cached result with key: {cache_key}")
+                return cached_result.get("result", None)  # type: ignore
+        except Exception as e:
+            print(f"Cache lookup failed: {str(e)}")
+
+        return None
+
+    def _get_from_cache(self, cache_key: str) -> Optional[str]:
+        """
+        Try to get a result from the cache (synchronous version).
+
+        Args:
+            cache_key: The cache key to look up
+
+        Returns:
+            Cached result or None if not found
+        """
+        return asyncio.run(self._get_from_cache_async(cache_key))
+
+    async def _save_to_cache_async(self, cache_key: str, result: str) -> None:
+        """
+        Save a result to the cache asynchronously.
+
+        Args:
+            cache_key: The cache key to use
+            result: The result to cache
+        """
+        try:
+            await self.cache.set(cache_key, {"result": result})
+            print(f"Saved result to cache with key: {cache_key}")
+        except Exception as e:
+            print(f"Failed to save to cache: {str(e)}")
+
+    def _save_to_cache(self, cache_key: str, result: str) -> None:
+        """
+        Save a result to the cache (synchronous version).
+
+        Args:
+            cache_key: The cache key to use
+            result: The result to cache
+        """
+        asyncio.run(self._save_to_cache_async(cache_key, result))
+
     def process_video(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
         Extract frames from a video and analyze them with a vision model.
@@ -225,26 +344,60 @@ class VidCapture:
         Returns:
             String containing the extracted knowledge from the video frames
         """
+        # Check cache first
+        cache_key = self._get_cache_key(video_path, prompt)
+        cached_result = self._get_from_cache(cache_key)  # type: ignore
+        if cached_result:
+            return cached_result
+
+        # Cache miss or invalidation - process the video
         # Extract frames from the video
         frames, _ = self.extract_frames(video_path)
 
         if not frames:
             raise ValueError(f"No frames could be extracted from {video_path}")
 
-        return self.capture(prompt, frames, **kwargs)
+        result = self.capture(prompt, frames, **kwargs)
+
+        # Store in cache
+        self._save_to_cache(cache_key, result)  # type: ignore
+
+        return result
 
     async def process_video_async(
         self, video_path: str, prompt: str, **kwargs: Any
     ) -> str:
         """
         Asynchronous wrapper for process_video.
+
+        Checks cache first, processes video if not in cache, and stores result.
+
+        Args:
+            video_path: Path to the video file
+            prompt: Instruction prompt for the vision model
+            **kwargs: Additional parameters to pass to the vision model
+
+        Returns:
+            String containing the extracted knowledge from the video frames
         """
+        # Check cache first
+        cache_key = self._get_cache_key(video_path, prompt)
+        cached_result = await self._get_from_cache_async(cache_key)  # type: ignore
+        if cached_result:
+            return cached_result
+
+        # Cache miss or invalidation - process the video
         frames, _ = self.extract_frames(video_path)
 
         if not frames:
             raise ValueError(f"No frames could be extracted from {video_path}")
 
-        return await self.capture_async(prompt, frames, **kwargs)
+        result = await self.capture_async(prompt, frames, **kwargs)
+
+        # Store in cache
+        await self._save_to_cache_async(cache_key, result)  # type: ignore
+
+        return result
 
     @classmethod
     def analyze_video(cls, video_path: str) -> dict:

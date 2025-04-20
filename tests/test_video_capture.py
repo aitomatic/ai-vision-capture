@@ -125,13 +125,13 @@ async def test_capture_async(vid_capture: VidCapture, monkeypatch: MonkeyPatch) 
     # Create a few test frames
     test_frames = [Image.new('RGB', (100, 100), color=(73, 109, 137)) for _ in range(3)]
 
-    # Mock the vision model's aprocess_image method
+    # Mock the vision model's method
     mock_result = "Test result from vision model"
 
-    async def mock_aprocess_image(*args: Any, **kwargs: Any) -> str:
+    async def mock_process_image_async(*args: Any, **kwargs: Any) -> str:
         return mock_result
 
-    monkeypatch.setattr(vid_capture.vision_model, "aprocess_image", mock_aprocess_image)
+    monkeypatch.setattr(vid_capture.vision_model, "process_image_async", mock_process_image_async)
 
     # Call capture_async
     result = await vid_capture.capture_async("Describe these images", test_frames)

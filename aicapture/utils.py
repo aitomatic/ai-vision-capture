@@ -34,6 +34,10 @@ def ensure_bucket_exists(bucket_name: str) -> None:
             raise
 
 
+def get_default_bucket() -> str:
+    return os.getenv("DXA_DATA_BUCKET", "test-bucket-local")
+
+
 # Create default buckets when using Minio
 if os.getenv("USE_MINIO", "false").lower() == "true":
     # Get bucket name from environment or use a default
