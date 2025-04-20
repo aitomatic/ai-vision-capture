@@ -11,7 +11,7 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/openai",
-        invalidate_cache=True,  # Set to True to force reprocessing
+        invalidate_cache=True,
     )
 
     result = parser.process_image(image_path)

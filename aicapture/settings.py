@@ -83,7 +83,7 @@ class OpenAIVisionConfig(VisionModelConfig):
         "OPENAI_API_KEY", ""
     )
     model: str = os.getenv("OPENAI_VISION_MODEL", "") or os.getenv(
-        "OPENAI_MODEL", "gpt-4o"
+        "OPENAI_MODEL", "gpt-4.1-mini"
     )
     api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv(
         "OPENAI_BASE_URL", "https://api.openai.com/v1"

@@ -203,11 +203,11 @@ class S3Cache(AsyncCacheInterface):
             s3_path = self._get_s3_path(key)
             data_bytes = json.dumps(value).encode("utf-8")
 
-            logger.info(f"Uploading to S3: s3://{self.bucket}/{s3_path}")
+            # logger.info(f"Uploading to S3: s3://{self.bucket}/{s3_path}")
             await upload_file_to_s3_async(
                 bucket=self.bucket, file_or_data=data_bytes, s3_path=s3_path
             )
-            logger.info(f"Successfully uploaded to S3: s3://{self.bucket}/{s3_path}")
+            # logger.info(f"Successfully uploaded to S3: s3://{self.bucket}/{s3_path}")
         except Exception as e:
             logger.error(f"Error setting value in S3 cache: {e}")
             # Don't raise the exception as we want to continue even if S3 fails
@@ -273,14 +273,16 @@ class TwoLayerCache:
 
     async def set(self, key: str, value: Dict[str, Any]) -> None:
         """Set an item in both file and S3 caches."""
+        logger.warning(f"Saving to cache: {key}")
+
         try:
             # Save to file cache first
-            logger.info("Saving to file cache")
+            logger.debug("Saving to file cache")
             self.file_cache.set(key, value)
 
             # Save to S3 if available
             if self.s3_cache:
-                logger.info("Saving to S3 cache")
+                logger.debug("Saving to S3 cache")
                 await self.s3_cache.aset(key, value)
         except Exception as e:
             logger.error(f"Error in cache set operation: {e}")

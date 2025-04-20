@@ -121,7 +121,7 @@ class VisionModel(ABC):
         pass
 
     @abstractmethod
-    async def aprocess_image(
+    async def process_image_async(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
     ) -> str:
         """Process one or more images asynchronously with the given prompt."""
@@ -135,7 +135,7 @@ class VisionModel(ABC):
         pass
 
     @abstractmethod
-    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+    async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
         """Process text asynchronously with the given prompt."""
         pass
 
@@ -270,7 +270,7 @@ class AnthropicVisionModel(VisionModel):
             self._aclient = anthropic.AsyncClient(api_key=self.api_key)
         return cast(anthropic.AsyncClient, self._aclient)
 
-    async def aprocess_image(
+    async def process_image_async(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
     ) -> str:
         """Process image(s) using Claude Vision asynchronously."""
@@ -346,7 +346,7 @@ class AnthropicVisionModel(VisionModel):
 
         return str(response.content[0].text)
 
-    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+    async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
         """Process text using Claude Vision asynchronously."""
         request_params = {
             "model": self.model,
@@ -424,7 +424,7 @@ class OpenAIVisionModel(VisionModel):
         content.append(TextContent(type="text", text=prompt))
         return content
 
-    async def aprocess_image(
+    async def process_image_async(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
     ) -> str:
         """Process image(s) using OpenAI Vision asynchronously."""
@@ -481,7 +481,7 @@ class OpenAIVisionModel(VisionModel):
 
         return response.choices[0].message.content or ""
 
-    async def process_text(self, messages: List[Any], **kwargs: Any) -> str:
+    async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
         """Process text using OpenAI Vision asynchronously."""
         response = await self.aclient.chat.completions.create(
             model=self.model,

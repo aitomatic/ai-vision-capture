@@ -64,4 +64,4 @@ class VisionCapture:
         # from pprint import pprint
 
         # pprint(messages)
-        return await self.vision_model.process_text(messages)
+        return await self.vision_model.process_text_async(messages)
