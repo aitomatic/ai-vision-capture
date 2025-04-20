@@ -131,7 +131,9 @@ async def test_capture_async(vid_capture: VidCapture, monkeypatch: MonkeyPatch) 
     async def mock_process_image_async(*args: Any, **kwargs: Any) -> str:
         return mock_result
 
-    monkeypatch.setattr(vid_capture.vision_model, "process_image_async", mock_process_image_async)
+    monkeypatch.setattr(
+        vid_capture.vision_model, "process_image_async", mock_process_image_async
+    )
 
     # Call capture_async
     result = await vid_capture.capture_async("Describe these images", test_frames)
