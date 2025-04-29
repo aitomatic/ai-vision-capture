@@ -88,7 +88,7 @@ class OpenAIVisionConfig(VisionModelConfig):
     api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv(
         "OPENAI_BASE_URL", "https://api.openai.com/v1"
     )
-    max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "8000"))
+    max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "5000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
 
     def __post_init__(self) -> None:
@@ -100,7 +100,7 @@ class GeminiVisionConfig(VisionModelConfig):
     """Configuration for Google Gemini Vision models."""
 
     api_key: str = os.getenv("GEMINI_API_KEY", "")
-    model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-04-17")
 
     def __post_init__(self) -> None:
         """Validate Gemini configuration."""

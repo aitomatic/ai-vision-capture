@@ -52,6 +52,7 @@ DEFAULT_PROMPT = """
     - Capture all text, labels, or annotations
     - Explain the purpose or meaning of the image
 
+    Don't generate repetitive empty lines or table rows.
     Output in markdown format, with all details, do not include introductory phrases or meta-commentary.
     """
 

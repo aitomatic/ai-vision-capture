@@ -4,8 +4,8 @@ from aicapture import GeminiVisionModel, VisionParser
 def main():
     # Initialize Gemini vision model (API key will be loaded from .env)
     vision_model = GeminiVisionModel(
-        model="gemini-2.0-flash",
-        temperature=0.3,
+        model="gemini-2.5-flash-preview-04-17",
+        temperature=0.0,
     )
 
     # Initialize parser

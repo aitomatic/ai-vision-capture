@@ -189,7 +189,7 @@ from aicapture import VisionParser, GeminiVisionModel
 
 # Configure Gemini vision model with custom settings
 vision_model = GeminiVisionModel(
-    model="gemini-2.0-flash",
+    model="gemini-2.5-flash-preview-04-17",
     api_key="your_gemini_api_key"
 )
 
