@@ -21,7 +21,7 @@ export ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 # Google Gemini
 export USE_VISION=gemini
 export GEMINI_API_KEY=your_gemini_key
-export GEMINI_MODEL=gemini-2.0-flash
+export GEMINI_MODEL=gemini-2.5-flash-preview-04-17
 
 # Azure OpenAI
 export USE_VISION=azure-openai

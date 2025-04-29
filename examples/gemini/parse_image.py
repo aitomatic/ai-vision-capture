@@ -3,7 +3,7 @@ from aicapture import GeminiVisionModel, VisionParser
 
 def main():
     # Initialize OpenAI vision model (API key will be loaded from .env)
-    vision_model = GeminiVisionModel()
+    vision_model = GeminiVisionModel(max_tokens=5500)
 
     image_path = "tests/sample/images/logic.png"
 

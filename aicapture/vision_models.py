@@ -386,8 +386,14 @@ class OpenAIVisionModel(VisionModel):
             image_quality=image_quality,
             **kwargs,
         )
-        self.max_tokens = OpenAIVisionConfig.max_tokens
-        self.temperature = OpenAIVisionConfig.temperature
+        if "max_tokens" in kwargs:
+            self.max_tokens = kwargs["max_tokens"]
+        else:
+            self.max_tokens = OpenAIVisionConfig.max_tokens
+        if "temperature" in kwargs:
+            self.temperature = kwargs["temperature"]
+        else:
+            self.temperature = OpenAIVisionConfig.temperature
 
     @property
     def client(self) -> OpenAI:
