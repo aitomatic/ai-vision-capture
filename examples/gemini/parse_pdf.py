@@ -12,28 +12,27 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/gemini",
-        invalidate_cache=False,  # change to True to invalidate cache
-        prompt="""
-        Extract from this technical document:
-        1. Main topics and key points
-        2. Technical specifications
-        3. Important procedures
-        4. Tables and data (in markdown)
-        5. Diagrams and figures
-        """,
+        invalidate_cache=True,  # change to True to invalidate cache
     )
 
     # Process a single PDF
-    result = parser.process_pdf("tests/sample/pdfs/sample.pdf")
+    # pdf_path = "tests/sample/pdfs/sample.pdf"
+    folder_path = "tmp/long"
+    result = parser.process_folder(folder_path)
 
     # Save results
     # parser.save_output(result, "output.json")
     # parser.save_markdown_output(result, "output")
 
-    print(f"Document: {result['file_object']['file_name']}")
-    print(f"Pages: {result['file_object']['total_pages']}")
-    print(f"Words: {result['file_object']['total_words']}")
+    from pprint import pprint
+
+    pprint(result[0]["file_object"]["pages"][0])
 
 
 if __name__ == "__main__":
+    import time
+
+    t1 = time.time()
     main()
+    t2 = time.time()
+    print(f"Time taken: {t2 - t1} seconds")
