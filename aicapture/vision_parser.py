@@ -263,12 +263,12 @@ class VisionParser:
                 "page_number": page_number,
                 "page_content": content.strip(),
                 "page_hash": page_hash,
-                "page_objects": [
-                    {
-                        "md": content.strip(),
-                        "has_image": False,  # not used for now
-                    }
-                ],
+                # "page_objects": [
+                #     {
+                #         "md": content.strip(),
+                #         "has_image": False,  # not used for now
+                #     }
+                # ],
             }
 
         except Exception as e:
@@ -476,13 +476,15 @@ class VisionParser:
         try:
             # Initial validation and setup
             pdf_file, file_hash = await self._validate_and_setup(pdf_path)
-            cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
+            # cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
+            cache_key = file_hash  # for pdf let not complicate with prompt hash
+
+            doc = fitz.open(str(pdf_file))
+            total_pages = len(doc)
 
             # Check if image cache is available for this file hash
             # If not, try to download it from cloud storage
-            logger.info(f"Checking image cache for file hash: {file_hash}")
-            doc = fitz.open(str(pdf_file))
-            total_pages = len(doc)
+            # logger.info(f"Checking image cache for file hash: {file_hash}")
 
             # Try to download image cache if not already available locally
             # skip for now to save time and disk space

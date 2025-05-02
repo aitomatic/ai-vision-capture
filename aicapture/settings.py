@@ -38,7 +38,7 @@ class VisionModelProvider:
 
 # Default vision model configuration
 USE_VISION = os.getenv("USE_VISION", VisionModelProvider.openai).lower()
-MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "5"))
+MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "20"))
 
 
 # Image quality settings
