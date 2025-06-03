@@ -169,13 +169,26 @@ class VisionParser:
         page_image_path = cache_dir / f"{page_hash}.png"
 
         if page_image_path.exists():
-            # Use cached image
-            logger.info(
-                f"Using cached image for page {page_idx+1} from {page_image_path}"
-            )
-            return Image.open(page_image_path)
+            try:
+                # Load cached image and ensure data is loaded into memory
+                with Image.open(page_image_path) as cached_img:
+                    # Load the image data to avoid file handle issues
+                    cached_img.load()
+                    logger.info(
+                        f"Using cached image for page {page_idx+1} from {page_image_path}"
+                    )
+                    return cached_img  # type: ignore
+            except Exception as e:
+                logger.warning(
+                    f"Cached image {page_image_path} is corrupted: {e}. Regenerating..."
+                )
+                # Remove the corrupted file and regenerate
+                try:
+                    page_image_path.unlink()
+                except Exception:
+                    pass
 
-        # Generate the image if not cached
+        # Generate the image if not cached or cache was corrupted
         logger.info(f"Generating image for page {page_idx+1}")
         page = doc[page_idx]
         zoom = self.dpi / 72
@@ -435,7 +448,10 @@ class VisionParser:
         finally:
             # Clean up page images to free memory
             for img in page_images:
-                img.close()
+                try:
+                    img.close()
+                except Exception:
+                    pass  # Continue cleanup even if one image fails
 
         # Add already processed pages from partial results for this chunk
         for page_idx in range(chunk_start, chunk_end):
