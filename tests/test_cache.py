@@ -1,11 +1,10 @@
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional
-from unittest.mock import AsyncMock, patch
+from typing import Any, Dict, Generator
 
 import pytest
 
-from aicapture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
+from aicapture.cache import FileCache, HashUtils, ImageCache, S3Cache, TwoLayerCache
 
 
 @pytest.fixture
@@ -183,312 +182,145 @@ class TestImageCache:
     def test_init_default(self, temp_cache_dir: Path) -> None:
         """Test ImageCache initialization."""
         cache = ImageCache(str(temp_cache_dir))
-        assert cache.cache_dir == Path(temp_cache_dir)
-        assert (cache.cache_dir / "images").exists()
+        assert cache.cache_dir == Path(temp_cache_dir) / "images"
+        assert cache.cache_dir.exists()
 
-    def test_set_and_get(self, temp_cache_dir: Path) -> None:
-        """Test storing and retrieving images from cache."""
+    def test_init_with_cloud_bucket(self, temp_cache_dir: Path) -> None:
+        """Test ImageCache initialization with cloud bucket."""
+        cache = ImageCache(str(temp_cache_dir), cloud_bucket="test-bucket")
+        assert cache.cloud_bucket == "test-bucket"
+        assert cache.cache_dir == Path(temp_cache_dir) / "images"
+
+    def test_get_local_cache_path(self, temp_cache_dir: Path) -> None:
+        """Test local cache path generation."""
         cache = ImageCache(str(temp_cache_dir))
-        key = "test_image"
-        image_data = b"fake_image_data"
+        file_hash = "abc123"
+        path = cache._get_local_cache_path(file_hash)
+        expected_path = Path(temp_cache_dir) / "images" / file_hash
+        assert path == expected_path
 
-        # Store image
-        cache.set(key, image_data)
-
-        # Retrieve image
-        retrieved_data = cache.get(key)
-        assert retrieved_data == image_data
-
-    def test_get_nonexistent_image(self, temp_cache_dir: Path) -> None:
-        """Test retrieving non-existent image."""
+    def test_get_s3_prefix(self, temp_cache_dir: Path) -> None:
+        """Test S3 prefix generation."""
         cache = ImageCache(str(temp_cache_dir))
-        result = cache.get("nonexistent_image")
-        assert result is None
+        file_hash = "abc123"
+        prefix = cache._get_s3_prefix(file_hash)
+        expected_prefix = f"production/images/raw_images/{file_hash}"
+        assert prefix == expected_prefix
 
-    def test_invalidate_image(self, temp_cache_dir: Path) -> None:
-        """Test invalidating image cache entries."""
+    def test_validate_cache_exists(self, temp_cache_dir: Path) -> None:
+        """Test cache validation when cache exists."""
         cache = ImageCache(str(temp_cache_dir))
-        key = "test_image"
-        image_data = b"fake_image_data"
+        file_hash = "test_hash"
+        cache_path = cache._get_local_cache_path(file_hash)
+        cache_path.mkdir(parents=True, exist_ok=True)
 
-        # Store image
-        cache.set(key, image_data)
-        assert cache.get(key) == image_data
+        # Create some test image files
+        for i in range(3):
+            (cache_path / f"page_{i}.png").touch()
 
-        # Invalidate
-        result = cache.invalidate(key)
-        assert result is True
-        assert cache.get(key) is None
+        assert cache._validate_cache(cache_path, 3) is True
+        assert cache._validate_cache(cache_path, 5) is False  # Not enough files
 
-    def test_clear_images(self, temp_cache_dir: Path) -> None:
-        """Test clearing all image cache entries."""
+    def test_validate_cache_missing(self, temp_cache_dir: Path) -> None:
+        """Test cache validation when cache doesn't exist."""
         cache = ImageCache(str(temp_cache_dir))
+        file_hash = "nonexistent_hash"
+        cache_path = cache._get_local_cache_path(file_hash)
 
-        # Store multiple images
-        cache.set("image1", b"data1")
-        cache.set("image2", b"data2")
-        cache.set("image3", b"data3")
-
-        # Clear cache
-        cache.clear()
-
-        # Verify they're gone
-        assert cache.get("image1") is None
-        assert cache.get("image2") is None
-        assert cache.get("image3") is None
-
-    def test_image_file_path(self, temp_cache_dir: Path) -> None:
-        """Test image file path generation."""
-        cache = ImageCache(str(temp_cache_dir))
-        key = "test_image"
-        expected_path = temp_cache_dir / "images" / f"{key}.bin"
-
-        cache.set(key, b"test_data")
-        assert expected_path.exists()
+        assert cache._validate_cache(cache_path, 1) is False
 
 
 class TestTwoLayerCache:
     """Test cases for TwoLayerCache implementation."""
 
-    def test_init_default(self, temp_cache_dir: Path) -> None:
-        """Test TwoLayerCache initialization."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-        assert isinstance(cache.local_cache, FileCache)
-        assert cache.cloud_cache is None  # Default should be None
+    def test_init_file_cache_only(self, temp_cache_dir: Path) -> None:
+        """Test TwoLayerCache initialization with file cache only."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+        assert cache.file_cache == file_cache
+        assert cache.s3_cache is None
 
-    def test_init_with_cloud_cache(self, temp_cache_dir: Path) -> None:
-        """Test TwoLayerCache initialization with cloud cache enabled."""
-        with patch.dict('os.environ', {'USE_CLOUD_CACHE': 'true'}):
-            cache = TwoLayerCache(str(temp_cache_dir))
-            assert isinstance(cache.local_cache, FileCache)
-            assert cache.cloud_cache is not None
+    def test_init_with_s3_cache(self, temp_cache_dir: Path) -> None:
+        """Test TwoLayerCache initialization with S3 cache."""
+        file_cache = FileCache(str(temp_cache_dir))
+        s3_cache = S3Cache("test-bucket", "test-prefix")
+        cache = TwoLayerCache(file_cache, s3_cache)
+        assert cache.file_cache == file_cache
+        assert cache.s3_cache == s3_cache
 
     @pytest.mark.asyncio
-    async def test_aget_local_cache_hit(
+    async def test_get_file_cache_hit(
         self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
     ) -> None:
-        """Test getting data when it exists in local cache."""
-        cache = TwoLayerCache(str(temp_cache_dir))
+        """Test getting data when it exists in file cache."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
         key = "test_key"
 
-        # Store in local cache
-        cache.local_cache.set(key, sample_cache_data)
+        # Store in file cache
+        file_cache.set(key, sample_cache_data)
 
         # Retrieve
-        result = await cache.aget(key)
+        result = await cache.get(key)
         assert result == sample_cache_data
 
     @pytest.mark.asyncio
-    async def test_aget_local_cache_miss_no_cloud(self, temp_cache_dir: Path) -> None:
-        """Test getting data when not in local cache and no cloud cache."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-        result = await cache.aget("nonexistent_key")
+    async def test_get_cache_miss(self, temp_cache_dir: Path) -> None:
+        """Test getting data when not in cache."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+        result = await cache.get("nonexistent_key")
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_aset_local_only(
+    async def test_set_file_cache_only(
         self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
     ) -> None:
-        """Test setting data in local cache only."""
-        cache = TwoLayerCache(str(temp_cache_dir))
+        """Test setting data in file cache only."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
         key = "test_key"
 
-        await cache.aset(key, sample_cache_data)
+        await cache.set(key, sample_cache_data)
 
-        # Should be in local cache
-        assert cache.local_cache.get(key) == sample_cache_data
+        # Should be in file cache
+        assert file_cache.get(key) == sample_cache_data
 
     @pytest.mark.asyncio
-    async def test_ainvalidate_local_only(
+    async def test_invalidate_file_cache_only(
         self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
     ) -> None:
-        """Test invalidating data from local cache only."""
-        cache = TwoLayerCache(str(temp_cache_dir))
+        """Test invalidating data from file cache only."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
         key = "test_key"
 
         # Store data
-        await cache.aset(key, sample_cache_data)
-        assert cache.local_cache.get(key) == sample_cache_data
+        await cache.set(key, sample_cache_data)
+        assert file_cache.get(key) == sample_cache_data
 
         # Invalidate
-        result = await cache.ainvalidate(key)
-        assert result is True
-        assert cache.local_cache.get(key) is None
+        await cache.invalidate(key)
+        assert file_cache.get(key) is None
 
     @pytest.mark.asyncio
-    async def test_aclear_local_only(
+    async def test_clear_file_cache_only(
         self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
     ) -> None:
-        """Test clearing local cache only."""
-        cache = TwoLayerCache(str(temp_cache_dir))
+        """Test clearing file cache only."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
 
         # Store data
-        await cache.aset("key1", sample_cache_data)
-        await cache.aset("key2", sample_cache_data)
+        await cache.set("key1", sample_cache_data)
+        await cache.set("key2", sample_cache_data)
 
         # Clear
-        await cache.aclear()
+        await cache.clear()
 
         # Verify cleared
-        assert cache.local_cache.get("key1") is None
-        assert cache.local_cache.get("key2") is None
-
-    def test_get_sync_interface(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test synchronous interface methods."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-        key = "test_key"
-
-        # Test set and get
-        cache.set(key, sample_cache_data)
-        result = cache.get(key)
-        assert result == sample_cache_data
-
-        # Test invalidate
-        assert cache.invalidate(key) is True
-        assert cache.get(key) is None
-
-    def test_clear_sync_interface(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test synchronous clear interface."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-
-        cache.set("key1", sample_cache_data)
-        cache.set("key2", sample_cache_data)
-
-        cache.clear()
-
-        assert cache.get("key1") is None
-        assert cache.get("key2") is None
-
-
-class MockCloudCache:
-    """Mock cloud cache for testing TwoLayerCache with cloud functionality."""
-
-    def __init__(self):
-        self.data = {}
-
-    async def aget(self, key: str) -> Optional[Dict[str, Any]]:
-        return self.data.get(key)
-
-    async def aset(self, key: str, value: Dict[str, Any]) -> None:
-        self.data[key] = value
-
-    async def ainvalidate(self, key: str) -> bool:
-        if key in self.data:
-            del self.data[key]
-            return True
-        return False
-
-    async def aclear(self) -> None:
-        self.data.clear()
-
-
-class TestTwoLayerCacheWithCloud:
-    """Test TwoLayerCache with cloud cache functionality."""
-
-    @pytest.fixture
-    def cache_with_cloud(self, temp_cache_dir: Path) -> TwoLayerCache:
-        """Create a TwoLayerCache with mock cloud cache."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-        cache.cloud_cache = MockCloudCache()
-        return cache
-
-    @pytest.mark.asyncio
-    async def test_aget_cloud_cache_hit(
-        self, cache_with_cloud: TwoLayerCache, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test getting data from cloud cache when not in local."""
-        key = "test_key"
-
-        # Store in cloud cache only
-        await cache_with_cloud.cloud_cache.aset(key, sample_cache_data)
-
-        # Retrieve (should get from cloud and cache locally)
-        result = await cache_with_cloud.aget(key)
-        assert result == sample_cache_data
-
-        # Should now be in local cache too
-        assert cache_with_cloud.local_cache.get(key) == sample_cache_data
-
-    @pytest.mark.asyncio
-    async def test_aset_with_cloud_cache(
-        self, cache_with_cloud: TwoLayerCache, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test setting data in both local and cloud cache."""
-        key = "test_key"
-
-        await cache_with_cloud.aset(key, sample_cache_data)
-
-        # Should be in both caches
-        assert cache_with_cloud.local_cache.get(key) == sample_cache_data
-        assert await cache_with_cloud.cloud_cache.aget(key) == sample_cache_data
-
-    @pytest.mark.asyncio
-    async def test_ainvalidate_with_cloud_cache(
-        self, cache_with_cloud: TwoLayerCache, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test invalidating data from both caches."""
-        key = "test_key"
-
-        # Store in both caches
-        await cache_with_cloud.aset(key, sample_cache_data)
-
-        # Invalidate
-        result = await cache_with_cloud.ainvalidate(key)
-        assert result is True
-
-        # Should be gone from both caches
-        assert cache_with_cloud.local_cache.get(key) is None
-        assert await cache_with_cloud.cloud_cache.aget(key) is None
-
-    @pytest.mark.asyncio
-    async def test_aclear_with_cloud_cache(
-        self, cache_with_cloud: TwoLayerCache, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test clearing both caches."""
-        # Store data in both caches
-        await cache_with_cloud.aset("key1", sample_cache_data)
-        await cache_with_cloud.aset("key2", sample_cache_data)
-
-        # Clear
-        await cache_with_cloud.aclear()
-
-        # Should be gone from both caches
-        assert cache_with_cloud.local_cache.get("key1") is None
-        assert cache_with_cloud.local_cache.get("key2") is None
-        assert await cache_with_cloud.cloud_cache.aget("key1") is None
-        assert await cache_with_cloud.cloud_cache.aget("key2") is None
-
-    @pytest.mark.asyncio
-    async def test_cloud_cache_error_handling(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
-        """Test error handling when cloud cache fails."""
-        cache = TwoLayerCache(str(temp_cache_dir))
-
-        # Create a mock cloud cache that raises exceptions
-        mock_cloud_cache = AsyncMock()
-        mock_cloud_cache.aget.side_effect = Exception("Cloud cache error")
-        mock_cloud_cache.aset.side_effect = Exception("Cloud cache error")
-        mock_cloud_cache.ainvalidate.side_effect = Exception("Cloud cache error")
-        mock_cloud_cache.aclear.side_effect = Exception("Cloud cache error")
-
-        cache.cloud_cache = mock_cloud_cache
-
-        key = "test_key"
-
-        # Operations should still work with local cache
-        await cache.aset(key, sample_cache_data)
-        assert cache.local_cache.get(key) == sample_cache_data
-
-        result = await cache.aget(key)
-        assert result == sample_cache_data
-
-        assert await cache.ainvalidate(key) is True
-        assert cache.local_cache.get(key) is None
+        assert file_cache.get("key1") is None
+        assert file_cache.get("key2") is None
 
 
 if __name__ == "__main__":
