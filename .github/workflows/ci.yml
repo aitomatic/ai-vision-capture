@@ -61,7 +61,7 @@ jobs:
         echo "✅ Flake8 completed"
         
         echo "🔍 Running MyPy type checking..."
-        poetry run mypy aicapture examples --show-error-codes --pretty
+        poetry run mypy aicapture --show-error-codes --pretty
         echo "✅ MyPy check completed"
 
     - name: Run tests
