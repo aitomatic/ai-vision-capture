@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aicapture"
-version = "0.2.11"
+version = "0.3.0"
 description = "A Python module to capture knowledge from documents using Vision Language Models (VLMs)"
 authors = ["Aitomatic"]
 readme = "README.md"
@@ -32,6 +32,8 @@ isort = "^5.13.0"
 flake8 = "^7.0.0"
 mypy = "^1.8.0"
 pre-commit = "^3.6.0"
+autoflake = "^2.2.0"
+autopep8 = "^2.0.0"
 
 [tool.poetry.extras]
 aws = ["boto3"]
@@ -58,6 +60,13 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -36,8 +36,6 @@ class VideoConfig:
 class VideoValidationError(Exception):
     """Raised when video validation fails."""
 
-    pass
-
 
 class VidCapture:
     """

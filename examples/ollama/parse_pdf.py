@@ -2,12 +2,15 @@ from aicapture import OpenAIVisionModel, VisionParser
 
 ### set up ollama
 # ollama run llama3.2-vision:11b-instruct-q4_K_M
+# model = "llama3.2-vision:11b-instruct-q4_K_M"
+
+model = "qwen2.5vl:32b"
 
 
 def main():
-    # Initialize OpenAI vision model (API key will be loaded from .env)
+
     vision_model = OpenAIVisionModel(
-        model="llama3.2-vision:11b-instruct-q4_K_M",
+        model=model,
         api_base="http://localhost:11434/v1",
         api_key="ollama",
     )
