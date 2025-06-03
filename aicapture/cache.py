@@ -24,22 +24,18 @@ class CacheInterface(abc.ABC):
     @abc.abstractmethod
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """Retrieve an item from the cache."""
-        pass
 
     @abc.abstractmethod
     def set(self, key: str, value: Dict[str, Any]) -> None:
         """Store an item in the cache."""
-        pass
 
     @abc.abstractmethod
     def invalidate(self, key: str) -> bool:
         """Remove an item from the cache."""
-        pass
 
     @abc.abstractmethod
     def clear(self) -> None:
         """Clear all items from the cache."""
-        pass
 
 
 class AsyncCacheInterface(abc.ABC):
@@ -48,22 +44,18 @@ class AsyncCacheInterface(abc.ABC):
     @abc.abstractmethod
     async def aget(self, key: str) -> Optional[Dict[str, Any]]:
         """Async retrieve an item from the cache."""
-        pass
 
     @abc.abstractmethod
     async def aset(self, key: str, value: Dict[str, Any]) -> None:
         """Async store an item in the cache."""
-        pass
 
     @abc.abstractmethod
     async def ainvalidate(self, key: str) -> bool:
         """Async remove an item from the cache."""
-        pass
 
     @abc.abstractmethod
     async def aclear(self) -> None:
         """Async clear all items from the cache."""
-        pass
 
 
 class FileCache(CacheInterface):

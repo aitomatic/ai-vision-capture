@@ -112,32 +112,27 @@ class VisionModel(ABC):
     @abstractmethod
     def client(self) -> Any:
         """Synchronous client getter."""
-        pass
 
     @property
     @abstractmethod
     def aclient(self) -> Any:
         """Asynchronous client getter."""
-        pass
 
     @abstractmethod
     async def process_image_async(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
     ) -> str:
         """Process one or more images asynchronously with the given prompt."""
-        pass
 
     @abstractmethod
     def process_image(
         self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
     ) -> str:
         """Process one or more images synchronously with the given prompt."""
-        pass
 
     @abstractmethod
     async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
         """Process text asynchronously with the given prompt."""
-        pass
 
 
 class ImageSource(TypedDict):

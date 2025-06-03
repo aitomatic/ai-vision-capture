@@ -8,6 +8,10 @@ setup:
 
 ##@ Formatters
 
+format-autoflake: ## remove unused imports and variables
+	@echo "🔍 Removing unused imports and variables using autoflake..."
+	@poetry run autoflake --remove-all-unused-imports --remove-unused-variables --remove-duplicate-keys --in-place --recursive aicapture tests
+
 format-black: ## run black (code formatter)
 	@echo "🔍 Formatting code using black..."
 	@poetry run black -S . 
@@ -16,7 +20,11 @@ format-isort: ## run isort (import formatter)
 	@echo "🔍 Formatting imports using isort..."
 	@poetry run isort .
 
-format: format-black format-isort ## run all formatters
+format-autopep8: ## fix additional style issues
+	@echo "🔍 Fixing additional style issues using autopep8..."
+	@poetry run autopep8 --in-place --recursive --aggressive --aggressive aicapture tests
+
+format: format-autoflake format-black format-isort format-autopep8 ## run all formatters
 	@echo "✨ Code formatting complete!"
 
 ##@ Linters
@@ -31,7 +39,7 @@ lint-flake8: ## run flake8
 
 lint-mypy: ## run mypy (static-type checker)
 	@echo "🔍 Type checking using mypy..."
-	@poetry run mypy aicapture tests --show-error-codes --pretty
+	@poetry run mypy aicapture --show-error-codes --pretty
 
 lint-isort: ## run isort in check mode
 	@echo "🔍 Checking import format using isort..."

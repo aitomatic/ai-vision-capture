@@ -24,7 +24,7 @@ DEFAULT_PROMPT = """
     Text Content:
     - Extract all text in correct reading order, preserving original formatting and hierarchy
     - Maintain section headers, subheaders, and their relationships
-    - Include all numerical values, units, and technical specifications, 
+    - Include all numerical values, units, and technical specifications,
     - DO NOT summarize the content or skip any sections, we need all the details as possible.
 
     Tables:
@@ -60,13 +60,9 @@ DEFAULT_PROMPT = """
 class PDFValidationError(Exception):
     """Raised when PDF validation fails."""
 
-    pass
-
 
 class ImageValidationError(Exception):
     """Raised when image validation fails."""
-
-    pass
 
 
 class VisionParser:
@@ -128,7 +124,10 @@ class VisionParser:
                 bucket=self.cloud_bucket, prefix="production/data/cache-documents"
             )
         self.cache = TwoLayerCache(
-            file_cache=FileCache(cache_dir), s3_cache=s3_cache, invalidate_cache=invalidate_cache  # type: ignore
+            # type: ignore
+            file_cache=FileCache(cache_dir),
+            s3_cache=s3_cache,
+            invalidate_cache=invalidate_cache,
         )
 
     @property
