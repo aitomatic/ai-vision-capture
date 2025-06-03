@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -29,7 +30,7 @@ class TestGetS3Client:
             mock_client = Mock()
             mock_boto3.client.return_value = mock_client
 
-            def side_effect(name, *args):
+            def side_effect(name: str, *args: Any) -> Any:
                 if name == 'boto3':
                     return mock_boto3
                 return __import__(name, *args)
@@ -56,7 +57,7 @@ class TestGetS3Client:
             mock_boto3.client.return_value = mock_client
             mock_boto3.session.Config.return_value = mock_config
 
-            def side_effect(name, *args):
+            def side_effect(name: str, *args: Any) -> Any:
                 if name == 'boto3':
                     return mock_boto3
                 return __import__(name, *args)
@@ -89,7 +90,7 @@ class TestGetS3Client:
             mock_boto3.client.return_value = mock_client
             mock_boto3.session.Config.return_value = mock_config
 
-            def side_effect(name, *args):
+            def side_effect(name: str, *args: Any) -> Any:
                 if name == 'boto3':
                     return mock_boto3
                 return __import__(name, *args)
@@ -447,7 +448,7 @@ class TestListObjectsFromS3Async:
     async def test_list_objects_empty(self) -> None:
         """Test listing when no objects exist."""
         mock_client = Mock()
-        mock_response = {}  # No Contents key
+        mock_response: Dict[str, Any] = {}  # No Contents key
 
         with patch('aicapture.utils.get_s3_client', return_value=mock_client):
             with patch('asyncio.get_running_loop') as mock_loop:

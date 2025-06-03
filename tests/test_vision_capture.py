@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from PIL import Image
 from pytest import MonkeyPatch
 
 from aicapture.vision_capture import VisionCapture
@@ -34,7 +35,9 @@ class MockVisionModel(VisionModel):
     async def process_text_async(self, messages) -> str:
         return "Mock structured data extraction result"
 
-    def process_image(self, image, prompt: str, **kwargs) -> str:
+    def process_image(
+        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs
+    ) -> str:
         return "Mock image processing result"
 
     async def process_image_async(self, image, prompt: str, **kwargs) -> str:
@@ -296,7 +299,7 @@ async def test_capture_empty_pages(
     vision_capture: VisionCapture, monkeypatch: MonkeyPatch
 ) -> None:
     """Test capture with document that has no pages."""
-    empty_result = {"file_object": {"pages": []}}
+    empty_result: Dict[str, Any] = {"file_object": {"pages": []}}
 
     async def mock_parse_file(file_path: str) -> Dict[str, Any]:
         return empty_result
