@@ -200,9 +200,10 @@ async def test_partial_results_with_real_pdf(
         # Get file hash of the test PDF
         # pdf_file = Path(TEST_PDF_PATH)
         result = await vision_parser._validate_and_setup(str(TEST_PDF_PATH))
-        pdf_file, file_hash = (
-            result  # _validate_and_setup returns (pdf_file, file_hash)
-        )
+        (
+            pdf_file,
+            file_hash,
+        ) = result  # _validate_and_setup returns (pdf_file, file_hash)
         cache_key = file_hash  # For simplicity, just use the file hash as the cache key
 
         # Create mock pages that would come from processing
