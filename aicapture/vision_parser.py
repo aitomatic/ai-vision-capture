@@ -15,46 +15,49 @@ from loguru import logger
 from PIL import Image
 
 from aicapture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
+from aicapture.content_cleaner import ContentCleaner
 from aicapture.settings import MAX_CONCURRENT_TASKS, ImageQuality
 from aicapture.vision_models import VisionModel, create_default_vision_model
 
 DEFAULT_PROMPT = """
-    Extract the document content, following these guidelines:
+<GENERAL_INSTRUCTIONS>
+Extract the document content, following these guidelines:
 
-    Text Content:
-    - Extract all text in correct reading order, preserving original formatting and hierarchy
-    - Maintain section headers, subheaders, and their relationships
-    - Include all numerical values, units, and technical specifications,
-    - DO NOT summarize the content or skip any sections, we need all the details as possible.
+Text Content:
+- Extract all text in correct reading order, preserving original formatting and hierarchy
+- Maintain section headers, subheaders, and their relationships
+- Include all numerical values, units, and technical specifications,
+- DO NOT summarize the content or skip any sections, we need all the details as possible.
 
-    Tables:
-    - Convert to markdown format with clear column headers, keep the nested structure as it is.
-    - Preserve all numerical values, units, and relationships
-    - Include table title/caption and any reference numbers
+Tables:
+- Convert to markdown format with clear column headers, keep the nested structure as it is.
+- Preserve all numerical values, units, and relationships
+- Include table title/caption and any reference numbers
 
-    Graphs & Charts:
-    - Identify the visualization type (line graph, bar chart, scatter plot, etc.)
-    - List all axes labels and their units
-    - Describe all the insights, trends, or patterns
-    - Include details for all annotations, legends, labels, etc.
-    - Explain what the visualization is demonstrating
+Graphs & Charts:
+- Identify the visualization type (line graph, bar chart, scatter plot, etc.)
+- List all axes labels and their units
+- Describe all the insights, trends, or patterns
+- Include details for all annotations, legends, labels, etc.
+- Explain what the visualization is demonstrating
 
-    Diagrams & Schematics:
-    - Identify the type of diagram (block diagram, circuit schematic, flowchart, etc.)
-    - List all components and their functions
-    - Describe all connections and relationships between components
-    - Include all labels, values, or specifications
-    - Explain purpose and operation of the diagram
+Diagrams & Schematics:
+- Identify the type of diagram (block diagram, circuit schematic, flowchart, etc.)
+- List all components and their functions
+- Describe all connections and relationships between components
+- Include all labels, values, or specifications
+- Explain purpose and operation of the diagram
 
-    Images:
-    - Describe what the image shows
-    - Include all measurements, dimensions, or specifications
-    - Capture all text, labels, or annotations
-    - Explain the purpose or meaning of the image
+Images:
+- Describe what the image shows
+- Include all measurements, dimensions, or specifications
+- Capture all text, labels, or annotations
+- Explain the purpose or meaning of the image
 
-    Don't generate repetitive empty lines or table rows.
-    Output in markdown format, with all details, do not include introductory phrases or meta-commentary.
-    """
+Don't generate repetitive empty lines or empty table rows.
+Output in markdown format, with all details, do not include introductory phrases or meta-commentary.
+</GENERAL_INSTRUCTIONS>
+"""
 
 
 class PDFValidationError(Exception):
@@ -112,6 +115,7 @@ class VisionParser:
         self.prompt = prompt
         self.dpi = dpi
         self.cloud_bucket = cloud_bucket
+        self.content_cleaner = ContentCleaner()
         if max_concurrent_tasks is not None:
             self.__class__._semaphore = Semaphore(max_concurrent_tasks)
 
@@ -244,7 +248,7 @@ class VisionParser:
 
     def _make_user_message(self, text_content: str) -> str:
         """Create enhanced user message with text extraction reference."""
-        return f"{self.prompt}\n\nFollowing is the text content extracted from the page, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
+        return f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
 
     async def process_page_async(
         self,
@@ -271,13 +275,16 @@ class VisionParser:
                     f"Completed processing page {page_number} - Releasing semaphore"
                 )
 
+            # Clean the content to remove base64 and repetitive spaces
+            cleaned_content = self.content_cleaner.clean_content(content.strip())
+
             return {
                 "page_number": page_number,
-                "page_content": content.strip(),
+                "page_content": cleaned_content,
                 "page_hash": page_hash,
                 # "page_objects": [
                 #     {
-                #         "md": content.strip(),
+                #         "md": cleaned_content,
                 #         "has_image": False,  # not used for now
                 #     }
                 # ],

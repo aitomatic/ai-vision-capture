@@ -69,7 +69,7 @@ class AnthropicVisionConfig(VisionModelConfig):
     """Configuration for Anthropic Claude Vision models."""
 
     api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+    model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
     def __post_init__(self) -> None:
         """Validate Anthropic configuration."""
