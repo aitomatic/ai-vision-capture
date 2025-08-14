@@ -498,8 +498,7 @@ class VisionParser:
         try:
             # Initial validation and setup
             pdf_file, file_hash = await self._validate_and_setup(pdf_path)
-            # cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
-            cache_key = file_hash  # for pdf let not complicate with prompt hash
+            cache_key = HashUtils.get_cache_key(file_hash, self.prompt)
 
             doc = fitz.open(str(pdf_file))
             total_pages = len(doc)
