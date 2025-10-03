@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import os
 from abc import ABC, abstractmethod
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union, cast
@@ -41,9 +42,7 @@ def create_default_vision_model() -> VisionModel:
         elif USE_VISION == VisionModelProvider.anthropic_bedrock:
             return AnthropicAWSBedrockVisionModel()
         else:
-            error_msg = f"Unsupported vision model type: {USE_VISION}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            return AutoDetectVisionModel()
     except Exception as e:
         logger.error(f"Failed to create vision model: {str(e)}")
         raise
@@ -58,6 +57,58 @@ def is_vision_model_installed() -> bool:
         VisionModelProvider.azure_openai,
         VisionModelProvider.anthropic_bedrock,
     ]
+
+
+def AutoDetectVisionModel() -> VisionModel:
+    """Auto-detect and create a vision model based on available API keys.
+
+    Checks for API keys in the following order:
+    1. Gemini (GEMINI_API_KEY)
+    2. OpenAI (OPENAI_API_KEY or OPENAI_VISION_API_KEY)
+    3. Azure OpenAI (AZURE_OPENAI_API_KEY)
+    4. Anthropic (ANTHROPIC_API_KEY)
+
+    Returns the first available model with its default configuration.
+
+    Raises:
+        ValueError: If no valid API key is found for any provider.
+    """
+    logger.info("Auto-detecting vision model based on available API keys...")
+
+    # Check Gemini
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    if gemini_key:
+        logger.info("Found Gemini API key, using GeminiVisionModel")
+        return GeminiVisionModel()
+
+    # Check OpenAI
+    openai_key = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv(
+        "OPENAI_API_KEY", ""
+    )
+    if openai_key:
+        logger.info("Found OpenAI API key, using OpenAIVisionModel")
+        return OpenAIVisionModel()
+
+    # Check Azure OpenAI
+    azure_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+    if azure_key:
+        logger.info("Found Azure OpenAI API key, using AzureOpenAIVisionModel")
+        return AzureOpenAIVisionModel()
+
+    # Check Anthropic
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if anthropic_key:
+        logger.info("Found Anthropic API key, using AnthropicVisionModel")
+        return AnthropicVisionModel()
+
+    # No API key found
+    error_msg = (
+        "No valid API key found for any vision model provider. "
+        "Please set one of the following environment variables: "
+        "GEMINI_API_KEY, OPENAI_API_KEY, AZURE_OPENAI_API_KEY, or ANTHROPIC_API_KEY"
+    )
+    logger.error(error_msg)
+    raise ValueError(error_msg)
 
 
 class VisionModel(ABC):
