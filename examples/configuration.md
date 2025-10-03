@@ -11,7 +11,7 @@ Choose ONE of the following providers:
 # OpenAI
 export USE_VISION=openai
 export OPENAI_API_KEY=your_openai_key
-export OPENAI_VISION_MODEL=gpt-4o
+export OPENAI_VISION_MODEL=gpt-4.1
 
 # Anthropic Claude
 export USE_VISION=claude
@@ -26,7 +26,7 @@ export GEMINI_MODEL=gemini-2.5-flash-preview-04-17
 # Azure OpenAI
 export USE_VISION=azure-openai
 export AZURE_OPENAI_API_KEY=your_azure_key
-export AZURE_OPENAI_MODEL=gpt-4o
+export AZURE_OPENAI_MODEL=gpt-4.1
 export AZURE_OPENAI_API_URL=https://xxx.openai.azure.com
 export AZURE_OPENAI_API_VERSION=2025-02-15-preview
 ```
@@ -72,7 +72,7 @@ VISION_PARSER_DPI=333
 from vision_capture import VisionParser, OpenAIVisionModel
 
 model = OpenAIVisionModel(
-    model="gpt-4o",
+    model="gpt-4.1",
     api_key="your_key",
     max_tokens=8000,
     temperature=0.0

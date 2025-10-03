@@ -4,7 +4,7 @@ from aicapture import GeminiVisionModel, VisionParser
 def main():
     # Initialize Gemini vision model (API key will be loaded from .env)
     vision_model = GeminiVisionModel(
-        model="gemini-2.5-flash-preview-04-17",
+        model="gemini-2.5-flash",
         temperature=0.0,
     )
 
@@ -12,7 +12,7 @@ def main():
     parser = VisionParser(
         vision_model=vision_model,
         cache_dir="./.vision_cache/gemini",
-        invalidate_cache=False,  # change to True to invalidate cache
+        invalidate_cache=True,  # change to True to invalidate cache
     )
 
     # Process a single PDF

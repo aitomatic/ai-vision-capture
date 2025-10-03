@@ -116,7 +116,7 @@ from aicapture import VisionCapture
 from aicapture import OpenAIVisionModel
 
 vision_model = OpenAIVisionModel(
-    model="gpt-4o",
+    model="gpt-4.1",
     max_tokens=4096,
     api_key="your_openai_key"
 )

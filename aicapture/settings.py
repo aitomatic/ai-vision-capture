@@ -69,7 +69,7 @@ class AnthropicVisionConfig(VisionModelConfig):
     """Configuration for Anthropic Claude Vision models."""
 
     api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 
     def __post_init__(self) -> None:
         """Validate Anthropic configuration."""
@@ -83,7 +83,7 @@ class OpenAIVisionConfig(VisionModelConfig):
         "OPENAI_API_KEY", ""
     )
     model: str = os.getenv("OPENAI_VISION_MODEL", "") or os.getenv(
-        "OPENAI_MODEL", "gpt-4.1-mini"
+        "OPENAI_MODEL", "gpt-4.1"
     )
     api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv(
         "OPENAI_BASE_URL", "https://api.openai.com/v1"
@@ -100,7 +100,7 @@ class GeminiVisionConfig(VisionModelConfig):
     """Configuration for Google Gemini Vision models."""
 
     api_key: str = os.getenv("GEMINI_API_KEY", "")
-    model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-04-17")
+    model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     def __post_init__(self) -> None:
         """Validate Gemini configuration."""
@@ -111,7 +111,7 @@ class AzureOpenAIVisionConfig(VisionModelConfig):
     """Configuration for Azure OpenAI Vision models."""
 
     api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
-    model: str = os.getenv("AZURE_OPENAI_MODEL", "gpt-4o")
+    model: str = os.getenv("AZURE_OPENAI_MODEL", "gpt-4.1")
     api_base: str = os.getenv(
         "AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com"
     )

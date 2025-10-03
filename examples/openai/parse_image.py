@@ -3,7 +3,7 @@ from aicapture import OpenAIVisionModel, VisionParser
 
 def main():
     # Initialize OpenAI vision model (API key will be loaded from .env)
-    vision_model = OpenAIVisionModel()
+    vision_model = OpenAIVisionModel(model="gpt-4.1")
 
     image_path = "tests/sample/images/logic.png"
 
