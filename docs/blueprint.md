@@ -145,12 +145,12 @@ def process_with_claude(image, client: anthropic.Client) -> dict:
 ```python
 from openai import OpenAI
 
-def process_with_gpt4o(image_path: str, client: OpenAI) -> dict:
-    """Process image using GPT-4o."""
+def process_with_gpt(image_path: str, client: OpenAI) -> dict:
+    """Process image using GPT-4.1."""
     base64_image = encode_image(image_path)
     
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4.1",
         messages=[{
             "role": "user",
             "content": [

@@ -37,7 +37,7 @@ async def main() -> None:
 
     # Create OpenAI Vision model
     vision_model = OpenAIVisionModel(
-        model="gpt-4o",  # or your preferred model
+        model="gpt-4.1",  # or your preferred model
         max_tokens=4096,
         api_key=api_key,
     )

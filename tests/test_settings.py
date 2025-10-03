@@ -157,15 +157,15 @@ class TestOpenAIVisionConfig:
     def test_init_with_env_vars(self, monkeypatch: MonkeyPatch) -> None:
         """Test initialization with environment variables."""
         monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
-        monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+        monkeypatch.setenv("OPENAI_MODEL", "gpt-4.1-mini")
         monkeypatch.setenv("OPENAI_BASE_URL", "https://custom.openai.com")
         monkeypatch.setenv("OPENAI_MAX_TOKENS", "4000")
         monkeypatch.setenv("OPENAI_TEMPERATURE", "0.5")
 
         # Create instance with explicit model since it's required
-        config = OpenAIVisionConfig(model="gpt-4o")
+        config = OpenAIVisionConfig(model="gpt-4.1-mini")
 
-        assert config.model == "gpt-4o"
+        assert config.model == "gpt-4.1-mini"
         # Can't test api_key directly as it's set via environment variables in
         # class definition
 
@@ -278,9 +278,9 @@ class TestAzureOpenAIVisionConfig:
         """Test initialization with default values."""
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
 
-        config = AzureOpenAIVisionConfig(model="gpt-4o")
+        config = AzureOpenAIVisionConfig(model="gpt-4.1-mini")
 
-        assert config.model == "gpt-4o"
+        assert config.model == "gpt-4.1-mini"
 
     def test_validation_error_missing_api_key(self, monkeypatch: MonkeyPatch) -> None:
         """Test validation error when API key is missing."""
