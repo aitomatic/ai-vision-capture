@@ -108,9 +108,18 @@ class TestCreateDefaultVisionModel:
                 assert result == mock_instance
 
     def test_unsupported_model_type(self, monkeypatch: MonkeyPatch) -> None:
-        """Test error handling for unsupported model type."""
+        """Test error handling for unsupported model type with no API keys."""
+        # Clear all API keys to ensure AutoDetectVisionModel fails
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_VISION_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
         with patch('aicapture.vision_models.USE_VISION', 'unsupported_model'):
-            with pytest.raises(ValueError, match="Unsupported vision model type"):
+            with pytest.raises(
+                ValueError, match="No valid API key found for any vision model provider"
+            ):
                 create_default_vision_model()
 
     def test_create_model_with_exception(self, monkeypatch: MonkeyPatch) -> None:
@@ -122,6 +131,73 @@ class TestCreateDefaultVisionModel:
             ):
                 with pytest.raises(Exception, match="Model creation failed"):
                     create_default_vision_model()
+
+    def test_auto_detect_gemini(self, monkeypatch: MonkeyPatch) -> None:
+        """Test AutoDetectVisionModel with Gemini API key."""
+        # Clear other API keys
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_VISION_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
+
+        with patch('aicapture.vision_models.USE_VISION', 'auto'):
+            with patch('aicapture.vision_models.GeminiVisionModel') as mock_model:
+                mock_instance = Mock()
+                mock_model.return_value = mock_instance
+                result = create_default_vision_model()
+                mock_model.assert_called_once()
+                assert result == mock_instance
+
+    def test_auto_detect_openai(self, monkeypatch: MonkeyPatch) -> None:
+        """Test AutoDetectVisionModel with OpenAI API key."""
+        # Clear other API keys, but set OpenAI
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
+
+        with patch('aicapture.vision_models.USE_VISION', 'auto'):
+            with patch('aicapture.vision_models.OpenAIVisionModel') as mock_model:
+                mock_instance = Mock()
+                mock_model.return_value = mock_instance
+                result = create_default_vision_model()
+                mock_model.assert_called_once()
+                assert result == mock_instance
+
+    def test_auto_detect_azure(self, monkeypatch: MonkeyPatch) -> None:
+        """Test AutoDetectVisionModel with Azure API key."""
+        # Clear other API keys, but set Azure
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_VISION_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_azure_key")
+
+        with patch('aicapture.vision_models.USE_VISION', 'auto'):
+            with patch('aicapture.vision_models.AzureOpenAIVisionModel') as mock_model:
+                mock_instance = Mock()
+                mock_model.return_value = mock_instance
+                result = create_default_vision_model()
+                mock_model.assert_called_once()
+                assert result == mock_instance
+
+    def test_auto_detect_anthropic(self, monkeypatch: MonkeyPatch) -> None:
+        """Test AutoDetectVisionModel with Anthropic API key."""
+        # Clear other API keys, but set Anthropic
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_VISION_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test_anthropic_key")
+
+        with patch('aicapture.vision_models.USE_VISION', 'auto'):
+            with patch('aicapture.vision_models.AnthropicVisionModel') as mock_model:
+                mock_instance = Mock()
+                mock_model.return_value = mock_instance
+                result = create_default_vision_model()
+                mock_model.assert_called_once()
+                assert result == mock_instance
 
 
 class TestIsVisionModelInstalled:

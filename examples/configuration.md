@@ -5,7 +5,27 @@ This guide provides detailed configuration options for AI Vision Capture in diff
 ## Environment Variables Reference
 
 ### Vision Provider Selection
-Choose ONE of the following providers:
+
+#### Auto-Detection (Recommended for Quick Start)
+Simply set an API key and the library will automatically detect and use the appropriate provider:
+
+```bash
+# Set any ONE of these API keys
+export GEMINI_API_KEY=your_gemini_key           # Checked first
+export OPENAI_API_KEY=your_openai_key           # Checked second
+export AZURE_OPENAI_API_KEY=your_azure_key      # Checked third
+export ANTHROPIC_API_KEY=your_anthropic_key     # Checked fourth
+
+# No need to set USE_VISION!
+# The library will automatically detect and use the first available provider
+```
+
+Detection order: Gemini → OpenAI → Azure OpenAI → Anthropic
+
+See `examples/auto/` for usage examples.
+
+#### Manual Provider Selection
+You can also explicitly specify a provider:
 
 ```bash
 # OpenAI
@@ -57,7 +77,15 @@ For local development, you can use a `.env` file instead of setting environment 
 3. Replace `export` with simple variable assignment
 4. Add your values
 
-Example `.env` file:
+Example `.env` file (with auto-detection):
+```bash
+# Just set an API key - auto-detection will handle the rest!
+GEMINI_API_KEY=your_key_here
+MAX_CONCURRENT_TASKS=5
+VISION_PARSER_DPI=333
+```
+
+Example `.env` file (with explicit provider):
 ```bash
 USE_VISION=openai
 OPENAI_API_KEY=sk-...
@@ -67,9 +95,21 @@ VISION_PARSER_DPI=333
 
 ## Advanced Configuration Examples
 
+### Auto-Detection with Code
+```python
+from aicapture import VisionParser, create_default_vision_model
+
+# Automatically detect and use the first available provider
+model = create_default_vision_model()
+parser = VisionParser(vision_model=model)
+
+# The model will be automatically selected based on available API keys
+print(f"Using: {model.__class__.__name__}")
+```
+
 ### Custom Vision Model Setup
 ```python
-from vision_capture import VisionParser, OpenAIVisionModel
+from aicapture import VisionParser, OpenAIVisionModel
 
 model = OpenAIVisionModel(
     model="gpt-4.1",
