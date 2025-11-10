@@ -944,22 +944,22 @@ class VisionParser:
                         f"Page {page['page_number']}: {page['confident_reason']}"
                     )
 
-        # Calculate average confidence
+        # Calculate minimum confidence
         if confident_scores:
-            avg_confidence = int(round(sum(confident_scores) / len(confident_scores)))
+            min_confidence = int(min(confident_scores))
             # Generate aggregate reason
             if confident_reasons:
                 reason_parts = ", ".join(confident_reasons[:3])
                 if len(confident_reasons) > 3:
                     reason_parts += ", ..."
                 confident_reason = (
-                    f"Average confidence: {avg_confidence} ({reason_parts})"
+                    f"Minimum confidence: {min_confidence} ({reason_parts})"
                 )
             else:
-                confident_reason = f"Average confidence: {avg_confidence}"
+                confident_reason = f"Minimum confidence: {min_confidence}"
         else:
             # No confidence data available (backward compatibility)
-            avg_confidence = 30
+            min_confidence = 30
             confident_reason = "Confidence assessment not available"
 
         # Prepare final output
@@ -970,7 +970,7 @@ class VisionParser:
                 "total_pages": total_pages,
                 "total_words": total_words,
                 "file_full_path": str(pdf_file.absolute()),
-                "confident_score": avg_confidence,
+                "confident_score": min_confidence,
                 "confident_reason": confident_reason,
                 "pages": pages,
             }
