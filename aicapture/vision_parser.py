@@ -250,20 +250,21 @@ class VisionParser:
         """Create enhanced user message with text extraction reference."""
         confidence_instruction = """
         
-        After extracting the content, provide a VERY conservative confidence assessment at the end of your response, using the format below.
+        After extracting the content, provide a VERY conservative confidence assessment at the end of your response using the format below.
 
-        Your confidence score should be based on a careful, critical evaluation of the extraction accuracy—especially for all numeric values (amounts, account numbers, dates, and any numbers). Also consider the overall condition of the document: if there are indications of low quality, blurriness, poor scans, handwriting, faded text, heavy marks, or other visual degradation, factor this into your assessment. If the document quality makes extraction or interpretation more ambiguous, your confidence should be lower, and briefly note the specific issues in the confident_reason. Do not assume correctness unless the formatting and condition of the document are entirely unambiguous.
+        The most important factor for your confident_score is the condition of the document. Start by carefully evaluating visible document quality: look for any blurriness, poor scans, handwriting, faded text, low resolution, heavy marks, or any other visual degradations. If the document is less than perfectly clear, your confidence should be substantially lower, and you must briefly note these specific condition issues in the confident_reason.
+        Next, consider your assessment of the accuracy of the extracted content, especially for all numbers (amounts, account numbers, dates, or any numeric values). If there are errors, ambiguities, or information is unclear, reduce your confident_score accordingly and briefly describe the issues in the confident_reason.
 
         The confidence assessment must follow this structure:
 
         <confidence_assessment>
         {
         "confident_score": <integer between 0 and 100>,
-        "confident_reason": "<brief but clear explanation for the score, noting any uncertainties, ambiguities, document condition (such as scan quality or legibility), or likely errors in numbers or extracted content. For example: 'All numbers are clear and document is high quality', or 'Amount field ambiguous due to faded text'>"
+        "confident_reason": "<brief but clear explanation for the score, noting the document condition (such as scan quality or legibility) first, and any uncertainties or ambiguities in the extracted content (especially numbers). For example: 'Document is high quality, all numbers are clear', or 'Amount field ambiguous due to faded and blurry area on scan'>"
         }
         </confidence_assessment>
 
-        The confident_score should conservatively reflect your actual confidence in the accuracy and logical consistency of the extracted content, with special attention to numbers and  visible condition of the document. Only assign a score near 100 if you are certain there are no extraction errors or quality issues. Lower the score when there are any doubts, ambiguities, or quality concerns. Keep the confident_reason detailed but concise.
+        The confident_score should be conservative, focusing first on the visible quality and condition of the document, and then on the accuracy of the extracted content. Only assign a score near 100 if the document condition is excellent and there are no extraction errors or issues. Make the confident_reason detailed but concise.
         """
         base_message = f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
         return base_message + confidence_instruction
