@@ -29,7 +29,7 @@ DEFAULT_BLOCK_IDENTIFICATION_PROMPT = """
     [
     {
         "type": "text|table|figure|math_formula|diagram|image",
-        "bbox": [ymin, xmin, ymax, xmax],  // All values in 0-1000, with padding
+        "bbox": [xmin, ymin, xmax, ymax],  // All values in 0-1000, with padding
     }
     ]
 
@@ -41,7 +41,7 @@ DEFAULT_BATCH_BLOCK_EXTRACTION_PROMPT = """
 
     {user_prompt}
 
-    Blocks (each with its own bbox <|det|>[[ymin, xmin, ymax, xmax]]<|/det|>):
+    Blocks (each with its own bbox <|det|>[[xmin, ymin, xmax, ymax]]<|/det|>):
     {blocks_info}
 
     For each block:
@@ -51,7 +51,7 @@ DEFAULT_BATCH_BLOCK_EXTRACTION_PROMPT = """
     - If empty, reply "Block appears empty".
 
     Strict format for each block:
-    <|ref|>{{block_type}}<|/ref|><|det|>[[{{ymin}}, {{xmin}}, {{ymax}}, {{xmax}}]]<|/det|>
+    <|ref|>{{block_type}}<|/ref|><|det|>[[{{xmin}}, {{ymin}}, {{xmax}}, {{ymax}}]]<|/det|>
     {{extracted_content}}
 
     Blocks ordered by position (top to bottom; then left to right).
@@ -78,13 +78,13 @@ DEFAULT_TEXT_LOCATION_PROMPT = """
     - The exact bounding box coordinates where the text appears
     - A snippet of the matched text (the actual text found in the document)
 
-    Bounding boxes must be in normalized format [ymin, xmin, ymax, xmax] where all values are between 0 and 1000.
+    Bounding boxes must be in normalized format [xmin, ymin, xmax, ymax] where all values are between 0 and 1000.
     Include some padding around the text, not a tight crop.
 
     Respond with a JSON array of matches:
     [
     {{
-        "bbox": [ymin, xmin, ymax, xmax],  // All values in 0-1000 range
+        "bbox": [xmin, ymin, xmax, ymax],  // All values in 0-1000 range
         "text": "actual text found in document",
         "confidence": <optional confidence score 0-100>
     }}
@@ -137,12 +137,12 @@ class OCRParser(VisionParser):
             prompt_template = self.block_prompts[block_type]
         else:
             _D = {
-                "text": "Extract ONLY text inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}. Exclude irrelevant outside content. Preserve structure and formatting.",
-                "table": "Extract table ONLY inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}. Output as markdown table. No info outside relevant region.",
-                "figure": "Describe figure/chart ONLY inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}. List axis labels, major trends, legends, visible data.",
-                "math_formula": "Extract all visible math formulas inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}, as LaTeX if possible.",
-                "diagram": "Describe diagram ONLY inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}. List visible parts/labels and relationships.",
-                "image": "Describe photograph/visual ONLY inside and reasonably around bbox [ymin, xmin, ymax, xmax]: {bbox}. List any text, features, and visible content.",
+                "text": "Extract ONLY text inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}. Exclude irrelevant outside content. Preserve structure and formatting.",
+                "table": "Extract table ONLY inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}. Output as markdown table. No info outside relevant region.",
+                "figure": "Describe figure/chart ONLY inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}. List axis labels, major trends, legends, visible data.",
+                "math_formula": "Extract all visible math formulas inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}, as LaTeX if possible.",
+                "diagram": "Describe diagram ONLY inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}. List visible parts/labels and relationships.",
+                "image": "Describe photograph/visual ONLY inside and reasonably around bbox [xmin, ymin, xmax, ymax]: {bbox}. List any text, features, and visible content.",
             }
             prompt_template = _D.get(block_type, self.prompt)
         return prompt_template.format(bbox=bbox)
@@ -151,16 +151,17 @@ class OCRParser(VisionParser):
         self, blocks: List[Dict[str, Any]], image_width: int, image_height: int
     ) -> str:
         """Build batch extraction prompt listing all blocks as pixel bboxes."""
-        sorted_blocks = sorted(blocks, key=lambda b: (b["bbox"][0], b["bbox"][1]))
+        # Sort by ymin, xmin
+        sorted_blocks = sorted(blocks, key=lambda b: (b["bbox"][1], b["bbox"][0]))
 
         def norm2pix(v, dim):
             return int(v / 1000.0 * dim)
 
         lines = []
         for i, b in enumerate(sorted_blocks, 1):
-            ymin, xmin, ymax, xmax = b["bbox"]
+            xmin, ymin, xmax, ymax = b["bbox"]
             lines.append(
-                f"Block {i}: type={b['type']}, bbox_pixels=[ymin={norm2pix(ymin, image_height)}, xmin={norm2pix(xmin, image_width)}, ymax={norm2pix(ymax, image_height)}, xmax={norm2pix(xmax, image_width)}]"
+                f"Block {i}: type={b['type']}, bbox_pixels=[xmin={norm2pix(xmin, image_width)}, ymin={norm2pix(ymin, image_height)}, xmax={norm2pix(xmax, image_width)}, ymax={norm2pix(ymax, image_height)}]"
             )
         prompt = DEFAULT_BATCH_BLOCK_EXTRACTION_PROMPT.format(
             user_prompt=self.prompt, blocks_info="\n".join(lines)
@@ -168,7 +169,7 @@ class OCRParser(VisionParser):
 
         if self.use_confidence_score:
             confidence_instruction = """
-        
+
                 After extracting the content, provide a VERY conservative confidence assessment at the end of your response using the format below.
 
                 The most important factor for your confident_score is the condition of the document. Start by carefully evaluating visible document quality: look for any blurriness, poor scans, handwriting, faded text, low resolution, heavy marks, or any other visual degradations. If the document is less than perfectly clear, your confidence should be substantially lower, and you must briefly note these specific condition issues in the confident_reason.
@@ -369,7 +370,7 @@ class OCRParser(VisionParser):
                 text = match.get("text", "")
                 confidence = match.get("confidence")
 
-                # Validate bbox
+                # Validate bbox (xmin, ymin, xmax, ymax)
                 if (
                     not isinstance(bbox, list)
                     or len(bbox) != 4
@@ -448,7 +449,7 @@ class OCRParser(VisionParser):
         Returns:
             Dictionary with page numbers as keys (e.g., "page_1", "page_2")
             Each value is a list of matches containing:
-            - bbox: [ymin, xmin, ymax, xmax] in normalized 0-1000 scale
+            - bbox: [xmin, ymin, xmax, ymax] in normalized 0-1000 scale
             - text: Matched text snippet
             - confidence: Optional confidence score if available
         """
@@ -533,7 +534,7 @@ class OCRParser(VisionParser):
         Returns:
             Dictionary with page numbers as keys (e.g., "page_1", "page_2")
             Each value is a list of matches containing:
-            - bbox: [ymin, xmin, ymax, xmax] in normalized 0-1000 scale
+            - bbox: [xmin, ymin, xmax, ymax] in normalized 0-1000 scale
             - text: Matched text snippet
             - confidence: Optional confidence score if available
         """
