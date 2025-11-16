@@ -16,6 +16,7 @@ from aicapture.vision_models import (
     create_default_vision_model,
     is_vision_model_installed,
 )
+from aicapture.ocr_parser import OCRParser
 from aicapture.vision_parser import VisionParser
 
 __version__ = "0.1.2"
@@ -25,6 +26,7 @@ __license__ = "Apache License 2.0"
 __all__ = [
     # Main parser
     "VisionParser",
+    "OCRParser",
     # Vision models
     "VisionModel",
     "OpenAIVisionModel",

@@ -179,7 +179,7 @@ class VisionParser:
                     # Load the image data to avoid file handle issues
                     cached_img.load()
                     logger.info(
-                        f"Using cached image for page {page_idx+1} from {page_image_path}"
+                        f"Using cached image for page {page_idx + 1} from {page_image_path}"
                     )
                     return cached_img  # type: ignore
             except Exception as e:
@@ -193,7 +193,7 @@ class VisionParser:
                     pass
 
         # Generate the image if not cached or cache was corrupted
-        logger.info(f"Generating image for page {page_idx+1}")
+        logger.info(f"Generating image for page {page_idx + 1}")
         page = doc[page_idx]
         zoom = self.dpi / 72
         matrix = fitz.Matrix(zoom, zoom)
@@ -248,7 +248,80 @@ class VisionParser:
 
     def _make_user_message(self, text_content: str) -> str:
         """Create enhanced user message with text extraction reference."""
-        return f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
+        confidence_instruction = """
+        
+        After extracting the content, provide a VERY conservative confidence assessment at the end of your response using the format below.
+
+        The most important factor for your confident_score is the condition of the document. Start by carefully evaluating visible document quality: look for any blurriness, poor scans, handwriting, faded text, low resolution, heavy marks, or any other visual degradations. If the document is less than perfectly clear, your confidence should be substantially lower, and you must briefly note these specific condition issues in the confident_reason.
+        Next, consider your assessment of the accuracy of the extracted content, especially for all numbers (amounts, account numbers, dates, or any numeric values). If there are errors, ambiguities, or information is unclear, reduce your confident_score accordingly and briefly describe the issues in the confident_reason.
+
+        The confidence assessment must follow this structure:
+
+        <confidence_assessment>
+        {
+        "confident_score": <integer between 0 and 100>,
+        "confident_reason": "<brief but clear explanation for the score, noting the document condition (such as scan quality or legibility) first, and any uncertainties or ambiguities in the extracted content (especially numbers). For example: 'Document is high quality, all numbers are clear', or 'Amount field ambiguous due to faded and blurry area on scan'>"
+        }
+        </confidence_assessment>
+
+        The confident_score should be conservative, focusing first on the visible quality and condition of the document, and then on the accuracy of the extracted content. Only assign a score near 100 if the document condition is excellent and there are no extraction errors or issues. Make the confident_reason detailed but concise.
+        """
+        base_message = f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
+        return base_message + confidence_instruction
+
+    def _parse_confidence_from_response(self, response: str) -> tuple[str, int, str]:
+        """Parse confidence assessment from model response.
+
+        Args:
+            response: The full response from the vision model
+
+        Returns:
+            Tuple of (content_without_confidence, confident_score, confident_reason)
+            Default values if parsing fails: (original_content, 50, "Unable to assess confidence")
+        """
+        try:
+            # Look for confidence assessment tags
+            start_tag = "<confidence_assessment>"
+            end_tag = "</confidence_assessment>"
+
+            start_idx = response.find(start_tag)
+            end_idx = response.find(end_tag)
+
+            if start_idx != -1 and end_idx != -1:
+                # Extract JSON between tags
+                json_start = start_idx + len(start_tag)
+                json_str = response[json_start:end_idx].strip()
+
+                # Parse JSON
+                confidence_data = json.loads(json_str)
+                # Convert to int, handling both int and float inputs
+                score_value = confidence_data.get("confident_score", 30)
+                confident_score = int(round(float(score_value)))
+                confident_reason = str(
+                    confidence_data.get(
+                        "confident_reason", "Unable to assess confidence"
+                    )
+                )
+
+                # Remove confidence assessment from content
+                content_without_confidence = (
+                    response[:start_idx].rstrip()
+                    + response[end_idx + len(end_tag) :].lstrip()
+                ).strip()
+
+                # Clamp score to valid range (0-100)
+                confident_score = max(0, min(100, confident_score))
+
+                return content_without_confidence, confident_score, confident_reason
+            else:
+                # No confidence assessment found, return defaults
+                logger.warning(
+                    "No confidence assessment found in response, using defaults"
+                )
+                return response, 30, "Unable to assess confidence"
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.warning(f"Error parsing confidence assessment: {e}, using defaults")
+            return response, 30, "Unable to assess confidence"
 
     async def process_page_async(
         self,
@@ -275,13 +348,22 @@ class VisionParser:
                     f"Completed processing page {page_number} - Releasing semaphore"
                 )
 
+            # Parse confidence from response
+            content_without_confidence, confident_score, confident_reason = (
+                self._parse_confidence_from_response(content)
+            )
+
             # Clean the content to remove base64 and repetitive spaces
-            cleaned_content = self.content_cleaner.clean_content(content.strip())
+            cleaned_content = self.content_cleaner.clean_content(
+                content_without_confidence.strip()
+            )
 
             return {
                 "page_number": page_number,
                 "page_content": cleaned_content,
                 "page_hash": page_hash,
+                "confident_score": confident_score,
+                "confident_reason": confident_reason,
                 # "page_objects": [
                 #     {
                 #         "md": cleaned_content,
@@ -712,6 +794,12 @@ class VisionParser:
                 )
 
             # Compile results
+            # Extract confidence from page result (already handled by process_page_async)
+            confident_score = page_result.get("confident_score", 30)
+            confident_reason = page_result.get(
+                "confident_reason", "Confidence assessment not available"
+            )
+
             result = {
                 "file_object": {
                     "file_name": image_file.name,
@@ -719,6 +807,8 @@ class VisionParser:
                     "total_pages": 1,
                     "total_words": len(page_result["page_content"].split()),
                     "file_full_path": str(image_file.absolute()),
+                    "confident_score": confident_score,
+                    "confident_reason": confident_reason,
                     "pages": [page_result],
                 }
             }
@@ -804,12 +894,12 @@ class VisionParser:
         for file_path in folder.iterdir():
             try:
                 if file_path.is_file():
-                    if file_path.suffix.lower() == '.pdf':
+                    if file_path.suffix.lower() == ".pdf":
                         logger.info(f"Processing PDF file: {file_path.name}")
                         result = await self.process_pdf_async(str(file_path))
                         results.append(result)
                     elif (
-                        file_path.suffix.lower().lstrip('.')
+                        file_path.suffix.lower().lstrip(".")
                         in self.SUPPORTED_IMAGE_FORMATS
                     ):
                         logger.info(f"Processing image file: {file_path.name}")
@@ -843,6 +933,36 @@ class VisionParser:
         if partial_cache.exists():
             partial_cache.unlink()
 
+        # Calculate aggregate confidence from all pages
+        confident_scores = []
+        confident_reasons = []
+        for page in pages:
+            # Handle both new format (with confidence) and old format (without)
+            if "confident_score" in page:
+                confident_scores.append(page["confident_score"])
+                if "confident_reason" in page:
+                    confident_reasons.append(
+                        f"Page {page['page_number']}: {page['confident_reason']}"
+                    )
+
+        # Calculate minimum confidence
+        if confident_scores:
+            min_confidence = int(min(confident_scores))
+            # Generate aggregate reason
+            if confident_reasons:
+                reason_parts = ", ".join(confident_reasons[:3])
+                if len(confident_reasons) > 3:
+                    reason_parts += ", ..."
+                confident_reason = (
+                    f"Minimum confidence: {min_confidence} ({reason_parts})"
+                )
+            else:
+                confident_reason = f"Minimum confidence: {min_confidence}"
+        else:
+            # No confidence data available (backward compatibility)
+            min_confidence = 30
+            confident_reason = "Confidence assessment not available"
+
         # Prepare final output
         return {
             "file_object": {
@@ -851,6 +971,8 @@ class VisionParser:
                 "total_pages": total_pages,
                 "total_words": total_words,
                 "file_full_path": str(pdf_file.absolute()),
+                "confident_score": min_confidence,
+                "confident_reason": confident_reason,
                 "pages": pages,
             }
         }
