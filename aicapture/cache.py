@@ -73,8 +73,7 @@ class FileCache(CacheInterface):
             )
             if not self.cache_dir.parent.exists():
                 logger.warning(
-                    f"Parent directory {
-                        self.cache_dir.parent} does not exist. Creating it."
+                    f"directory {self.cache_dir.parent} does not exist. Creating it."
                 )
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
