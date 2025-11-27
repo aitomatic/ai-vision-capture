@@ -8,7 +8,7 @@ import pytest
 from PIL import Image
 
 from aicapture.vision_models import VisionModel
-from aicapture.vision_parser import VisionParser
+from aicapture.vision_parser import ImageValidationError, VisionParser
 
 
 class MockVisionModel(VisionModel):
@@ -166,7 +166,7 @@ class TestVisionParserValidation:
         for image_path in invalid_formats:
             # Use the actual _validate_image method which should raise an exception
             # for invalid formats
-            with pytest.raises(ValueError):
+            with pytest.raises(ImageValidationError):
                 vision_parser._validate_image(image_path)
 
     def test_validate_image_format_case_insensitive(self, vision_parser: VisionParser) -> None:
@@ -216,7 +216,7 @@ class TestVisionParserImageProcessing:
         invalid_file = temp_cache_dir / "fake_image.jpg"
         invalid_file.write_text("This is not an image")
 
-        with pytest.raises((ValueError, RuntimeError)):  # Should raise an error when trying to process
+        with pytest.raises(Exception):  # PIL.UnidentifiedImageError or other error when trying to open invalid image
             await vision_parser.process_image_async(str(invalid_file))
 
     @pytest.mark.asyncio

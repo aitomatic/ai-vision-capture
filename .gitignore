@@ -175,3 +175,5 @@ poetry.lock
 tmp/
 .vision_cache/
 .vscode/
+.claude/
+CLAUDE.md
