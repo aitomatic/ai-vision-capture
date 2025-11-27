@@ -68,25 +68,17 @@ class FileCache(CacheInterface):
             cache_dir: store cache files. Defaults to tmp/.vision_parser_cache
         """
         try:
-            self.cache_dir = (
-                Path(cache_dir) if cache_dir else Path("tmp") / ".vision_parser_cache"
-            )
+            self.cache_dir = Path(cache_dir) if cache_dir else Path("tmp") / ".vision_parser_cache"
             if not self.cache_dir.parent.exists():
-                logger.warning(
-                    f"directory {self.cache_dir.parent} does not exist. Creating it."
-                )
+                logger.warning(f"directory {self.cache_dir.parent} does not exist. Creating it.")
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Initialized file cache at {self.cache_dir}")
         except PermissionError as e:
-            logger.error(
-                f"Permission denied when creating cache directory at {self.cache_dir}: {e}"
-            )
+            logger.error(f"Permission denied when creating cache directory at {self.cache_dir}: {e}")
             raise
         except Exception as e:
-            logger.error(
-                f"Failed to initialize cache directory at {self.cache_dir}: {e}"
-            )
+            logger.error(f"Failed to initialize cache directory at {self.cache_dir}: {e}")
             raise
 
     def _get_cache_path(self, key: str) -> Path:
@@ -180,9 +172,7 @@ class S3Cache(AsyncCacheInterface):
             logger.info(f"Loading from S3: s3://{self.bucket}/{s3_path}")
             data = await get_file_from_s3_async(bucket=self.bucket, key=s3_path)
             if data:
-                logger.info(
-                    f"Successfully loaded from S3: s3://{self.bucket}/{s3_path}"
-                )
+                logger.info(f"Successfully loaded from S3: s3://{self.bucket}/{s3_path}")
                 return json.loads(data.decode("utf-8"))  # type: ignore
             logger.info(f"No data found in S3: s3://{self.bucket}/{s3_path}")
         except Exception as e:
@@ -196,9 +186,7 @@ class S3Cache(AsyncCacheInterface):
             data_bytes = json.dumps(value).encode("utf-8")
 
             # logger.info(f"Uploading to S3: s3://{self.bucket}/{s3_path}")
-            await upload_file_to_s3_async(
-                bucket=self.bucket, file_or_data=data_bytes, s3_path=s3_path
-            )
+            await upload_file_to_s3_async(bucket=self.bucket, file_or_data=data_bytes, s3_path=s3_path)
             # logger.info(f"Successfully uploaded to S3: s3://{self.bucket}/{s3_path}")
         except Exception as e:
             logger.error(f"Error setting value in S3 cache: {e}")
@@ -241,9 +229,7 @@ class TwoLayerCache:
         self.s3_cache = s3_cache
         self.invalidate_cache = invalidate_cache
 
-    async def get(
-        self, key: str, update_cache: bool = True
-    ) -> Optional[Dict[str, Any]]:
+    async def get(self, key: str, update_cache: bool = True) -> Optional[Dict[str, Any]]:
         """Get an item from the cache, checking S3 cache first then file cache."""
         if self.invalidate_cache:
             return None
@@ -346,28 +332,18 @@ class ImageCache:
             cloud_bucket: S3 bucket name
         """
         try:
-            self.cache_dir = (
-                Path(cache_dir) / "images"
-                if cache_dir
-                else Path("tmp") / ".vision_parser_cache/images"
-            )
+            self.cache_dir = Path(cache_dir) / "images" if cache_dir else Path("tmp") / ".vision_parser_cache/images"
             if not self.cache_dir.parent.exists():
-                logger.warning(
-                    f"Parent directory {self.cache_dir.parent} does not exist. Creating it."
-                )
+                logger.warning(f"Parent directory {self.cache_dir.parent} does not exist. Creating it.")
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Initialized image cache at {self.cache_dir}")
             self.cloud_bucket = cloud_bucket
         except PermissionError as e:
-            logger.error(
-                f"Permission denied when creating image cache directory at {self.cache_dir}: {e}"
-            )
+            logger.error(f"Permission denied when creating image cache directory at {self.cache_dir}: {e}")
             raise
         except Exception as e:
-            logger.error(
-                f"Failed to initialize image cache directory at {self.cache_dir}: {e}"
-            )
+            logger.error(f"Failed to initialize image cache directory at {self.cache_dir}: {e}")
             raise
 
     def _get_local_cache_path(self, file_hash: str) -> Path:
@@ -388,9 +364,7 @@ class ImageCache:
         image_files = list(cache_path.glob("*.png"))
         return len(image_files) >= expected_pages
 
-    async def download_images_to_local_cache(
-        self, file_hash: str, expected_pages: int = 0
-    ) -> bool:
+    async def download_images_to_local_cache(self, file_hash: str, expected_pages: int = 0) -> bool:
         """Download cached images from S3 to local cache.
 
         Args:
@@ -403,9 +377,7 @@ class ImageCache:
         local_cache_path = self._get_local_cache_path(file_hash)
 
         # If we have a local cache already with the expected number of pages, we're done
-        if expected_pages > 0 and self._validate_cache(
-            local_cache_path, expected_pages
-        ):
+        if expected_pages > 0 and self._validate_cache(local_cache_path, expected_pages):
             logger.info(f"Found images in local cache: {local_cache_path}")
             return True
 
@@ -428,9 +400,7 @@ class ImageCache:
 
             # If we have an expected count, validate
             if expected_pages > 0 and len(contents) < expected_pages:
-                logger.info(
-                    f"S3 cache incomplete: found {len(contents)} objects, expected {expected_pages}"
-                )
+                logger.info(f"S3 cache incomplete: found {len(contents)} objects, expected {expected_pages}")
                 return False
 
             logger.info(f"Found {len(contents)} images in S3 cache: {s3_prefix}")
@@ -458,20 +428,14 @@ class ImageCache:
                     continue
 
                 # Create download task
-                download_tasks.append(
-                    download_file_from_s3_async(
-                        self.cloud_bucket, s3_key, str(local_path)
-                    )
-                )
+                download_tasks.append(download_file_from_s3_async(self.cloud_bucket, s3_key, str(local_path)))
 
             # Execute all download tasks concurrently
             if download_tasks:
                 logger.info(f"Downloading {len(download_tasks)} files from S3...")
                 results = await asyncio.gather(*download_tasks)
                 downloaded_count = sum(1 for result in results if result)
-                logger.info(
-                    f"Downloaded {downloaded_count} images from S3 to local cache"
-                )
+                logger.info(f"Downloaded {downloaded_count} images from S3 to local cache")
             else:
                 logger.info("No new files to download from S3")
                 downloaded_count = 0
@@ -505,9 +469,7 @@ class ImageCache:
 
             # Ensure cache path exists
             if not cache_path.exists() or not cache_path.is_dir():
-                logger.warning(
-                    f"Cache path does not exist or is not a directory: {cache_path}"
-                )
+                logger.warning(f"Cache path does not exist or is not a directory: {cache_path}")
                 return
 
             # Get all PNG files in the cache directory
@@ -526,18 +488,14 @@ class ImageCache:
                 s3_key = f"{s3_prefix}/{filename}"
 
                 # Create upload task - explicitly use None to handle typing
-                task = asyncio.create_task(
-                    upload_file_to_s3_async(self.cloud_bucket, str(local_path), s3_key)
-                )
+                task = asyncio.create_task(upload_file_to_s3_async(self.cloud_bucket, str(local_path), s3_key))
                 upload_tasks.append(task)
 
             # Execute all upload tasks concurrently
             if upload_tasks:
                 logger.info(f"Starting {len(upload_tasks)} upload tasks...")
                 await asyncio.gather(*upload_tasks)
-                logger.info(
-                    f"Successfully uploaded {len(upload_tasks)} images to S3 for {file_hash}"
-                )
+                logger.info(f"Successfully uploaded {len(upload_tasks)} images to S3 for {file_hash}")
             else:
                 logger.info("No files to upload")
 

@@ -203,9 +203,7 @@ class TestListS3Files:
             assert files == expected_files
 
             mock_client.get_paginator.assert_called_once_with("list_objects_v2")
-            mock_paginator.paginate.assert_called_once_with(
-                Bucket="test-bucket", Prefix="prefix"
-            )
+            mock_paginator.paginate.assert_called_once_with(Bucket="test-bucket", Prefix="prefix")
 
     @pytest.mark.asyncio
     async def test_list_s3_files_empty(self) -> None:
@@ -262,9 +260,7 @@ class TestUploadFileToS3Async:
                 Mock()
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
-                await upload_file_to_s3_async(
-                    "test-bucket", "/path/to/file.txt", "s3/path/file.txt"
-                )
+                await upload_file_to_s3_async("test-bucket", "/path/to/file.txt", "s3/path/file.txt")
 
                 # Should call upload_file
                 mock_loop.return_value.run_in_executor.assert_called_once()
@@ -282,9 +278,7 @@ class TestUploadFileToS3Async:
             with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
-                await upload_file_to_s3_async(
-                    "test-bucket", test_data, "s3/path/data.bin"
-                )
+                await upload_file_to_s3_async("test-bucket", test_data, "s3/path/data.bin")
 
                 # Should call put_object via lambda
                 mock_loop.return_value.run_in_executor.assert_called_once()
@@ -296,14 +290,10 @@ class TestUploadFileToS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    side_effect=Exception("Upload failed")
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=Exception("Upload failed"))
 
                 # Should not raise exception, but log error
-                await upload_file_to_s3_async(
-                    "test-bucket", "/path/to/file.txt", "s3/path/file.txt"
-                )
+                await upload_file_to_s3_async("test-bucket", "/path/to/file.txt", "s3/path/file.txt")
 
 
 class TestDeleteFileFromS3Async:
@@ -329,9 +319,7 @@ class TestDeleteFileFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    side_effect=Exception("Delete failed")
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=Exception("Delete failed"))
 
                 # Should not raise exception, but log error
                 await delete_file_from_s3_async("test-bucket", "path/to/file.txt")
@@ -368,13 +356,9 @@ class TestGetFileFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    side_effect=Exception("NoSuchKey")
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=Exception("NoSuchKey"))
 
-                result = await get_file_from_s3_async(
-                    "test-bucket", "nonexistent/file.txt"
-                )
+                result = await get_file_from_s3_async("test-bucket", "nonexistent/file.txt")
 
                 assert result is None
 
@@ -391,9 +375,7 @@ class TestDownloadFileFromS3Async:
             with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
-                result = await download_file_from_s3_async(
-                    "test-bucket", "s3/path/file.txt", "/local/path/file.txt"
-                )
+                result = await download_file_from_s3_async("test-bucket", "s3/path/file.txt", "/local/path/file.txt")
 
                 assert result is True
                 mock_loop.return_value.run_in_executor.assert_called_once()
@@ -405,13 +387,9 @@ class TestDownloadFileFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    side_effect=Exception("Download failed")
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=Exception("Download failed"))
 
-                result = await download_file_from_s3_async(
-                    "test-bucket", "s3/path/file.txt", "/local/path/file.txt"
-                )
+                result = await download_file_from_s3_async("test-bucket", "s3/path/file.txt", "/local/path/file.txt")
 
                 assert result is False
 
@@ -432,9 +410,7 @@ class TestListObjectsFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=mock_response
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(return_value=mock_response)
 
                 result = await list_objects_from_s3_async("test-bucket", "prefix")
 
@@ -452,9 +428,7 @@ class TestListObjectsFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=mock_response
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(return_value=mock_response)
 
                 result = await list_objects_from_s3_async("test-bucket", "empty-prefix")
 
@@ -467,9 +441,7 @@ class TestListObjectsFromS3Async:
 
         with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with patch("asyncio.get_running_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    side_effect=Exception("List failed")
-                )
+                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=Exception("List failed"))
 
                 result = await list_objects_from_s3_async("test-bucket", "prefix")
 

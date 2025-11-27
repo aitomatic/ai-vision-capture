@@ -49,13 +49,9 @@ def test_extract_frames(vid_capture: VidCapture) -> None:
 
     # Validate results
     assert len(frames) > 0, "No frames were extracted"
-    assert all(
-        isinstance(frame, Image.Image) for frame in frames
-    ), "Frames should be PIL Images"
+    assert all(isinstance(frame, Image.Image) for frame in frames), "Frames should be PIL Images"
     assert interval > 0, "Frame interval should be positive"
-    assert (
-        interval == 1.0 / vid_capture.config.frame_rate
-    ), "Interval should match config"
+    assert interval == 1.0 / vid_capture.config.frame_rate, "Interval should match config"
 
 
 def test_extract_frames_custom_rate() -> None:
@@ -131,9 +127,7 @@ async def test_capture_async(vid_capture: VidCapture, monkeypatch: MonkeyPatch) 
     async def mock_process_image_async(*args: Any, **kwargs: Any) -> str:
         return mock_result
 
-    monkeypatch.setattr(
-        vid_capture.vision_model, "process_image_async", mock_process_image_async
-    )
+    monkeypatch.setattr(vid_capture.vision_model, "process_image_async", mock_process_image_async)
 
     # Call capture_async
     result = await vid_capture.capture_async("Describe these images", test_frames)

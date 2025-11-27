@@ -12,9 +12,7 @@ TEST_IMAGE_PATH = Path(__file__).parent / "sample" / "images" / "logic.png"
 @pytest.fixture
 async def vision_parser() -> VisionParser:
     """Create a VisionParser instance with real OpenAI model."""
-    parser = VisionParser(
-        vision_model=create_default_vision_model(), cache_dir="tests/.cache"
-    )
+    parser = VisionParser(vision_model=create_default_vision_model(), cache_dir="tests/.cache")
     return parser
 
 

@@ -82,9 +82,7 @@ def AutoDetectVisionModel() -> VisionModel:
         return GeminiVisionModel()
 
     # Check OpenAI
-    openai_key = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv(
-        "OPENAI_API_KEY", ""
-    )
+    openai_key = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
     if openai_key:
         logger.info("Found OpenAI API key, using OpenAIVisionModel")
         return OpenAIVisionModel()
@@ -176,9 +174,7 @@ class VisionModel(ABC):
         """Process one or more images asynchronously with the given prompt."""
 
     @abstractmethod
-    def process_image(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
-    ) -> str:
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any) -> str:
         """Process one or more images synchronously with the given prompt."""
 
     @abstractmethod
@@ -233,24 +229,18 @@ class AnthropicVisionModel(VisionModel):
     ) -> None:
         super().__init__(model=model, api_key=api_key, **kwargs)
 
-    def _optimize_image(
-        self, image: Image.Image, is_batch: bool = False
-    ) -> Image.Image:
+    def _optimize_image(self, image: Image.Image, is_batch: bool = False) -> Image.Image:
         """Optimize image size according to Anthropic's recommendations."""
         max_size = self.MAX_BATCH_IMAGE_SIZE if is_batch else self.MAX_IMAGE_SIZE
         width, height = image.size
 
         # Check if image exceeds maximum dimensions
         if width > max_size[0] or height > max_size[1]:
-            raise ValueError(
-                f"Image dimensions exceed maximum allowed size of {max_size}"
-            )
+            raise ValueError(f"Image dimensions exceed maximum allowed size of {max_size}")
 
         # Optimize to recommended size if larger
         if width > self.OPTIMAL_IMAGE_SIZE or height > self.OPTIMAL_IMAGE_SIZE:
-            ratio = min(
-                self.OPTIMAL_IMAGE_SIZE / width, self.OPTIMAL_IMAGE_SIZE / height
-            )
+            ratio = min(self.OPTIMAL_IMAGE_SIZE / width, self.OPTIMAL_IMAGE_SIZE / height)
             new_size = (int(width * ratio), int(height * ratio))
             image = image.resize(new_size, Image.Resampling.LANCZOS)
 
@@ -261,18 +251,14 @@ class AnthropicVisionModel(VisionModel):
         width, height = image.size
         return int((width * height) / 750)
 
-    def _prepare_content(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str
-    ) -> List[ContentItem]:
+    def _prepare_content(self, image: Union[Image.Image, List[Image.Image]], prompt: str) -> List[ContentItem]:
         """Prepare content for Anthropic API with proper image formatting."""
         content: List[ContentItem] = []
         images = [image] if isinstance(image, Image.Image) else image
 
         # Validate number of images
         if len(images) > self.MAX_IMAGES_PER_REQUEST:
-            raise ValueError(
-                f"Maximum {self.MAX_IMAGES_PER_REQUEST} images allowed per request"
-            )
+            raise ValueError(f"Maximum {self.MAX_IMAGES_PER_REQUEST} images allowed per request")
 
         # Process each image
         is_batch = len(images) > 1
@@ -354,9 +340,7 @@ class AnthropicVisionModel(VisionModel):
 
         return str(response.content[0].text)
 
-    def process_image(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
-    ) -> str:
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any) -> str:
         """Process image(s) using Claude Vision synchronously."""
         content = self._prepare_content(image, prompt)
 
@@ -453,9 +437,7 @@ class OpenAIVisionModel(VisionModel):
             self._aclient = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
         return cast(AsyncOpenAI, self._aclient)
 
-    def _prepare_content(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str
-    ) -> List[ContentItem]:
+    def _prepare_content(self, image: Union[Image.Image, List[Image.Image]], prompt: str) -> List[ContentItem]:
         """Prepare content for OpenAI API."""
         content: List[ContentItem] = []
         images = [image] if isinstance(image, Image.Image) else image
@@ -505,9 +487,7 @@ class OpenAIVisionModel(VisionModel):
 
         return response.choices[0].message.content or ""
 
-    def process_image(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
-    ) -> str:
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any) -> str:
         """Process image(s) using OpenAI Vision synchronously."""
         content = self._prepare_content(image, prompt)
 
@@ -565,9 +545,7 @@ class GeminiVisionModel(OpenAIVisionModel):
         api_key: str = GeminiVisionConfig.api_key,
         **kwargs: Any,
     ) -> None:
-        super().__init__(
-            model=model, api_key=api_key, api_base=self.GEMINI_BASE_URL, **kwargs
-        )
+        super().__init__(model=model, api_key=api_key, api_base=self.GEMINI_BASE_URL, **kwargs)
 
 
 class AzureOpenAIVisionModel(OpenAIVisionModel):

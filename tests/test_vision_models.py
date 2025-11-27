@@ -98,9 +98,7 @@ class TestCreateDefaultVisionModel:
     def test_create_bedrock_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating Anthropic AWS Bedrock vision model."""
         with patch("aicapture.vision_models.USE_VISION", "anthropic_bedrock"):
-            with patch(
-                "aicapture.vision_models.AnthropicAWSBedrockVisionModel"
-            ) as mock_model:
+            with patch("aicapture.vision_models.AnthropicAWSBedrockVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -117,9 +115,7 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         with patch("aicapture.vision_models.USE_VISION", "unsupported_model"):
-            with pytest.raises(
-                ValueError, match="No valid API key found for any vision model provider"
-            ):
+            with pytest.raises(ValueError, match="No valid API key found for any vision model provider"):
                 create_default_vision_model()
 
     def test_create_model_with_exception(self, monkeypatch: MonkeyPatch) -> None:
@@ -237,9 +233,7 @@ class TestAnthropicVisionModel:
 
         with patch("aicapture.vision_models.anthropic.Anthropic"):
             # Test with explicit values since defaults are set at import time
-            model = AnthropicVisionModel(
-                model="claude-3-5-sonnet-20241022", api_key="test_key"
-            )
+            model = AnthropicVisionModel(model="claude-3-5-sonnet-20241022", api_key="test_key")
             # Check that we get the expected model and api key
             assert model.model == "claude-3-5-sonnet-20241022"
             assert model.api_key == "test_key"
@@ -247,9 +241,7 @@ class TestAnthropicVisionModel:
     def test_init_with_custom_params(self, monkeypatch: MonkeyPatch) -> None:
         """Test Anthropic model initialization with custom parameters."""
         with patch("aicapture.vision_models.anthropic.Anthropic"):
-            model = AnthropicVisionModel(
-                model="claude-3-haiku-20240307", api_key="custom_key"
-            )
+            model = AnthropicVisionModel(model="claude-3-haiku-20240307", api_key="custom_key")
             assert model.model == "claude-3-haiku-20240307"
             assert model.api_key == "custom_key"
 
@@ -301,9 +293,7 @@ class TestAnthropicVisionModel:
         mock_client.messages.create.return_value = mock_response
 
         # Mock both the class and the property
-        with patch(
-            "aicapture.vision_models.anthropic.AsyncAnthropic", return_value=mock_client
-        ):
+        with patch("aicapture.vision_models.anthropic.AsyncAnthropic", return_value=mock_client):
             model = AnthropicVisionModel()
             # Override the aclient property to return our mock
             model._aclient = mock_client

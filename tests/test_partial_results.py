@@ -103,9 +103,7 @@ async def test_load_partial_results(
 
 
 @pytest.mark.asyncio
-async def test_load_partial_results_nonexistent(
-    vision_parser: VisionParser, test_cache_dir: Path
-) -> None:
+async def test_load_partial_results_nonexistent(vision_parser: VisionParser, test_cache_dir: Path) -> None:
     """Test loading partial results when the file doesn't exist."""
     # Generate a non-existent cache key
     cache_key = "nonexistent_cache_key"
@@ -169,9 +167,7 @@ async def test_overwrite_existing_page(
 
 
 @pytest.mark.asyncio
-async def test_invalid_json_handling(
-    vision_parser: VisionParser, test_cache_dir: Path
-) -> None:
+async def test_invalid_json_handling(vision_parser: VisionParser, test_cache_dir: Path) -> None:
     """Test handling of invalid JSON in the partial results file."""
     cache_key = "test_invalid_json"
 
@@ -189,9 +185,7 @@ async def test_invalid_json_handling(
 
 
 @pytest.mark.asyncio
-async def test_partial_results_with_real_pdf(
-    vision_parser: VisionParser, test_cache_dir: Path
-) -> None:
+async def test_partial_results_with_real_pdf(vision_parser: VisionParser, test_cache_dir: Path) -> None:
     """Test partial results with a real PDF processing flow."""
     # Ensure the test PDF exists
     assert TEST_PDF_PATH.exists(), f"Test PDF not found at {TEST_PDF_PATH}"
