@@ -73,14 +73,16 @@ class FileCache(CacheInterface):
             )
             if not self.cache_dir.parent.exists():
                 logger.warning(
-                    f"Parent directory {self.cache_dir.parent} does not exist. Creating it."
+                    f"Parent directory {
+                        self.cache_dir.parent} does not exist. Creating it."
                 )
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Initialized file cache at {self.cache_dir}")
         except PermissionError as e:
             logger.error(
-                f"Permission denied when creating cache directory at {self.cache_dir}: {e}"
+                f"Permission denied when creating cache directory at {
+                    self.cache_dir}: {e}"
             )
             raise
         except Exception as e:
@@ -353,7 +355,8 @@ class ImageCache:
             )
             if not self.cache_dir.parent.exists():
                 logger.warning(
-                    f"Parent directory {self.cache_dir.parent} does not exist. Creating it."
+                    f"Parent directory {
+                        self.cache_dir.parent} does not exist. Creating it."
                 )
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -361,7 +364,8 @@ class ImageCache:
             self.cloud_bucket = cloud_bucket
         except PermissionError as e:
             logger.error(
-                f"Permission denied when creating image cache directory at {self.cache_dir}: {e}"
+                f"Permission denied when creating image cache directory at {
+                    self.cache_dir}: {e}"
             )
             raise
         except Exception as e:
@@ -429,7 +433,8 @@ class ImageCache:
             # If we have an expected count, validate
             if expected_pages > 0 and len(contents) < expected_pages:
                 logger.info(
-                    f"S3 cache incomplete: found {len(contents)} objects, expected {expected_pages}"
+                    f"S3 cache incomplete: found {
+                        len(contents)} objects, expected {expected_pages}"
                 )
                 return False
 
@@ -536,7 +541,8 @@ class ImageCache:
                 logger.info(f"Starting {len(upload_tasks)} upload tasks...")
                 await asyncio.gather(*upload_tasks)
                 logger.info(
-                    f"Successfully uploaded {len(upload_tasks)} images to S3 for {file_hash}"
+                    f"Successfully uploaded {
+                        len(upload_tasks)} images to S3 for {file_hash}"
                 )
             else:
                 logger.info("No files to upload")

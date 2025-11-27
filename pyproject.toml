@@ -1,48 +1,64 @@
-[tool.poetry]
+[project]
 name = "aicapture"
-version = "0.3.5"
+version = "0.3.6"
 description = "A Python module to capture knowledge from documents using Vision Language Models (VLMs)"
-authors = ["Aitomatic"]
-readme = "README.md"
-packages = [
-    {include = "aicapture"},
+authors = [
+    {name = "Aitomatic"}
 ]
-license = "MIT"
-homepage = "https://github.com/Aitomatic/ai-vision-capture"
-repository = "https://github.com/Aitomatic/ai-vision-capture"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = ["vision", "language", "models", "vlm", "document", "capture", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"  # Base Python runtime requirement
-pymupdf = "^1.25.3"  # PDF processing and manipulation library
-pillow = "^11.1.0"  # Python Imaging Library for image processing
-anthropic = "^0.30.1"  # Anthropic's Claude API client
-openai = "^1.65.2"  # OpenAI API client for GPT models
-python-dotenv = "^1.0.1"  # Load environment variables from .env files
-boto3 = "^1.34.0"  # AWS SDK for Python
-loguru = "^0.7.3"  # Better logging library than Python's built-in logging
-numpy = "^2.2.3"  # Numerical computing library for array operations
-opencv-python = "^4.11.0.86"  # Computer vision library
+# Runtime dependencies
+dependencies = [
+    "pymupdf>=1.25.3",  # PDF processing and manipulation library
+    "pillow>=11.1.0",  # Python Imaging Library for image processing
+    "anthropic>=0.30.1",  # Anthropic's Claude API client
+    "openai>=2.0.0",  # OpenAI API client for GPT models
+    "python-dotenv>=1.0.1",  # Load environment variables from .env files
+    "boto3>=1.34.0",  # AWS SDK for Python
+    "loguru>=0.7.3",  # Better logging library than Python's built-in logging
+    "numpy>=2.2.3",  # Numerical computing library for array operations
+    "opencv-python>=4.11.0.86",  # Computer vision library
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"  # Testing framework
-pytest-asyncio = "^0.23.5"  # Async testing support for pytest
-pytest-cov = "^4.1.0"  # Test coverage reporting
-black = "^24.2.0"  # Code formatter
-isort = "^5.13.0"  # Import statement organizer
-flake8 = "^7.0.0"  # Code linter
-mypy = "^1.8.0"  # Static type checker
-pre-commit = "^3.6.0"  # Git hooks manager
-autoflake = "^2.2.0"  # Remove unused imports
-autopep8 = "^2.0.0"  # Code formatter following PEP 8
-
-[tool.poetry.extras]
-aws = ["boto3"]  # Optional AWS integration
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=8.0.0",  # Testing framework
+    "pytest-asyncio>=0.23.5",  # Async testing support for pytest
+    "pytest-cov>=4.1.0",  # Test coverage reporting
+    "black>=24.2.0",  # Code formatter
+    "isort>=5.13.0",  # Import statement organizer
+    "flake8>=7.0.0",  # Code linter
+    "mypy>=1.8.0",  # Static type checker
+    "pre-commit>=3.6.0",  # Git hooks manager
+    "autoflake>=2.2.0",  # Remove unused imports
+    "autopep8>=2.0.0",  # Code formatter following PEP 8
+]
+# Optional cloud provider integrations
+aws = ["boto3>=1.34.0"]  # Optional AWS integration
 google = ["google-cloud-vision"]  # Optional Google Cloud Vision integration
 azure = ["azure-cognitiveservices-vision-computervision"]  # Optional Azure Computer Vision integration
 
+[project.urls]
+Homepage = "https://github.com/Aitomatic/ai-vision-capture"
+Repository = "https://github.com/Aitomatic/ai-vision-capture"
+Issues = "https://github.com/Aitomatic/ai-vision-capture/issues"
+
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 88

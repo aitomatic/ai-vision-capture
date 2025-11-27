@@ -179,7 +179,8 @@ class VisionParser:
                     # Load the image data to avoid file handle issues
                     cached_img.load()
                     logger.info(
-                        f"Using cached image for page {page_idx+1} from {page_image_path}"
+                        f"Using cached image for page {
+                            page_idx + 1} from {page_image_path}"
                     )
                     return cached_img  # type: ignore
             except Exception as e:
@@ -193,7 +194,7 @@ class VisionParser:
                     pass
 
         # Generate the image if not cached or cache was corrupted
-        logger.info(f"Generating image for page {page_idx+1}")
+        logger.info(f"Generating image for page {page_idx + 1}")
         page = doc[page_idx]
         zoom = self.dpi / 72
         matrix = fitz.Matrix(zoom, zoom)
@@ -631,7 +632,9 @@ class VisionParser:
         ext = Path(image_path).suffix.lower().lstrip(".")
         if ext not in self.SUPPORTED_IMAGE_FORMATS:
             raise ImageValidationError(
-                f"Unsupported image format: {ext}. Supported formats: {', '.join(self.SUPPORTED_IMAGE_FORMATS)}"
+                f"Unsupported image format: {ext}. Supported formats: {
+                    ', '.join(
+                        self.SUPPORTED_IMAGE_FORMATS)}"
             )
 
     def _optimize_image(self, image: Image.Image) -> Image.Image:
