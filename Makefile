@@ -44,7 +44,7 @@ lint-isort: ## run isort in check mode
 	@echo "🔍 Checking import format using isort..."
 	@uv run isort . --check-only --diff
 
-lint: lint-black lint-flake8 lint-mypy lint-isort ## run all linters
+lint: lint-black lint-isort lint-flake8 lint-mypy ## run all linters (matches CI order)
 	@echo "✨ Code linting complete!"
 
 ##@ Tests
