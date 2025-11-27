@@ -93,7 +93,7 @@ def test_init_default() -> None:
     capture = VisionCapture()
     assert capture.vision_model is not None
     assert capture.vision_parser is not None
-    assert hasattr(capture.vision_parser, 'vision_model')
+    assert hasattr(capture.vision_parser, "vision_model")
 
 
 def test_init_with_custom_vision_model(mock_vision_model: MockVisionModel) -> None:

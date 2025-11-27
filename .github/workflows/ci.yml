@@ -33,25 +33,20 @@ jobs:
       run: |
         uv sync --all-extras
 
-    - name: Run formatters check
+    - name: Run formatters and linters
       run: |
-        echo "🔍 Running Black formatter check..."
-        uv run black -S . --check
-        echo "✅ Black formatter check completed"
+        echo "Skipping Black formatter check"
 
-        echo "🔍 Running isort check..."
-        uv run isort . --check-only --diff
-        echo "✅ isort check completed"
+        echo "🚀 Starting Ruff check..."
+        uv run ruff check . --exclude ".venv/"
+        echo "✅ Ruff check completed"
 
-    - name: Run linters
-      run: |
-        echo "🔍 Running Flake8..."
-        uv run flake8 aicapture tests
-        echo "✅ Flake8 completed"
-
-        echo "🔍 Running MyPy type checking..."
-        uv run mypy aicapture --show-error-codes --pretty
-        echo "✅ MyPy check completed"
+        echo "🚀 Starting MyPy type checking..."
+        echo "MyPy version:"
+        uv run python -m mypy --version
+        echo "Running MyPy on aicapture directory..."
+        uv run python -m mypy aicapture --show-error-codes --pretty
+        echo "✅ MyPy type checking completed"
 
     - name: Run tests
       env:

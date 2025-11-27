@@ -807,12 +807,12 @@ class VisionParser:
         for file_path in folder.iterdir():
             try:
                 if file_path.is_file():
-                    if file_path.suffix.lower() == '.pdf':
+                    if file_path.suffix.lower() == ".pdf":
                         logger.info(f"Processing PDF file: {file_path.name}")
                         result = await self.process_pdf_async(str(file_path))
                         results.append(result)
                     elif (
-                        file_path.suffix.lower().lstrip('.')
+                        file_path.suffix.lower().lstrip(".")
                         in self.SUPPORTED_IMAGE_FORMATS
                     ):
                         logger.info(f"Processing image file: {file_path.name}")
@@ -905,9 +905,9 @@ class VisionParser:
                     first_page = doc[0]
                     metadata["page_width"] = first_page.rect.width
                     metadata["page_height"] = first_page.rect.height
-                    metadata["page_size"] = (
-                        f"{first_page.rect.width}x{first_page.rect.height}"
-                    )
+                    metadata[
+                        "page_size"
+                    ] = f"{first_page.rect.width}x{first_page.rect.height}"
 
             return {"status": "success", **metadata}
 

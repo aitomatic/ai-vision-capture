@@ -25,13 +25,13 @@ class TestGetS3Client:
         monkeypatch.setenv("USE_MINIO", "false")
 
         # Mock boto3 at the function import level
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_boto3 = Mock()
             mock_client = Mock()
             mock_boto3.client.return_value = mock_client
 
             def side_effect(name: str, *args: Any) -> Any:
-                if name == 'boto3':
+                if name == "boto3":
                     return mock_boto3
                 return __import__(name, *args)
 
@@ -50,7 +50,7 @@ class TestGetS3Client:
         monkeypatch.setenv("MINIO_SECRET_KEY", "test_secret")
 
         # Mock boto3 at the function import level
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_boto3 = Mock()
             mock_client = Mock()
             mock_config = Mock()
@@ -58,7 +58,7 @@ class TestGetS3Client:
             mock_boto3.session.Config.return_value = mock_config
 
             def side_effect(name: str, *args: Any) -> Any:
-                if name == 'boto3':
+                if name == "boto3":
                     return mock_boto3
                 return __import__(name, *args)
 
@@ -83,7 +83,7 @@ class TestGetS3Client:
             monkeypatch.delenv(env_var, raising=False)
 
         # Mock boto3 at the function import level
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_boto3 = Mock()
             mock_client = Mock()
             mock_config = Mock()
@@ -91,7 +91,7 @@ class TestGetS3Client:
             mock_boto3.session.Config.return_value = mock_config
 
             def side_effect(name: str, *args: Any) -> Any:
-                if name == 'boto3':
+                if name == "boto3":
                     return mock_boto3
                 return __import__(name, *args)
 
@@ -115,7 +115,7 @@ class TestEnsureBucketExists:
         # head_bucket succeeds, so bucket exists
         mock_client.head_bucket.return_value = {}
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             ensure_bucket_exists("test-bucket")
 
             mock_client.head_bucket.assert_called_once_with(Bucket="test-bucket")
@@ -128,7 +128,7 @@ class TestEnsureBucketExists:
         mock_client.head_bucket.side_effect = Exception("NoSuchBucket")
         mock_client.create_bucket.return_value = {}
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             ensure_bucket_exists("test-bucket")
 
             mock_client.head_bucket.assert_called_once_with(Bucket="test-bucket")
@@ -140,7 +140,7 @@ class TestEnsureBucketExists:
         mock_client.head_bucket.side_effect = Exception("NoSuchBucket")
         mock_client.create_bucket.side_effect = Exception("CreateBucketFailed")
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             with pytest.raises(Exception, match="CreateBucketFailed"):
                 ensure_bucket_exists("test-bucket")
 
@@ -191,7 +191,7 @@ class TestListS3Files:
         ]
         mock_paginator.paginate.return_value = mock_pages
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             files = await list_s3_files("test-bucket", "prefix")
 
             # Should exclude images and the prefix itself
@@ -217,7 +217,7 @@ class TestListS3Files:
         # Mock empty response
         mock_paginator.paginate.return_value = [{}]  # No Contents key
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             files = await list_s3_files("test-bucket", "empty-prefix")
 
             assert files == []
@@ -241,7 +241,7 @@ class TestListS3Files:
         ]
         mock_paginator.paginate.return_value = mock_pages
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
             files = await list_s3_files("test-bucket", "prefix")
 
             # Only non-image files should be returned
@@ -257,8 +257,8 @@ class TestUploadFileToS3Async:
         """Test uploading a file by path."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 Mock()
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
@@ -278,8 +278,8 @@ class TestUploadFileToS3Async:
         mock_client = Mock()
         test_data = b"test file content"
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
                 await upload_file_to_s3_async(
@@ -294,8 +294,8 @@ class TestUploadFileToS3Async:
         """Test error handling during upload."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     side_effect=Exception("Upload failed")
                 )
@@ -314,8 +314,8 @@ class TestDeleteFileFromS3Async:
         """Test successful file deletion."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
                 await delete_file_from_s3_async("test-bucket", "path/to/file.txt")
@@ -327,8 +327,8 @@ class TestDeleteFileFromS3Async:
         """Test error handling during deletion."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     side_effect=Exception("Delete failed")
                 )
@@ -347,8 +347,8 @@ class TestGetFileFromS3Async:
         mock_response = {"Body": Mock()}
         mock_response["Body"].read.return_value = b"file content"
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 # Mock two executor calls: one for get_object, one for body.read()
                 mock_loop.return_value.run_in_executor = AsyncMock()
                 mock_loop.return_value.run_in_executor.side_effect = [
@@ -366,8 +366,8 @@ class TestGetFileFromS3Async:
         """Test file not found error."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     side_effect=Exception("NoSuchKey")
                 )
@@ -387,8 +387,8 @@ class TestDownloadFileFromS3Async:
         """Test successful file download."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(return_value=None)
 
                 result = await download_file_from_s3_async(
@@ -403,8 +403,8 @@ class TestDownloadFileFromS3Async:
         """Test error handling during download."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     side_effect=Exception("Download failed")
                 )
@@ -430,8 +430,8 @@ class TestListObjectsFromS3Async:
             ]
         }
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     return_value=mock_response
                 )
@@ -450,8 +450,8 @@ class TestListObjectsFromS3Async:
         mock_client = Mock()
         mock_response: Dict[str, Any] = {}  # No Contents key
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     return_value=mock_response
                 )
@@ -465,8 +465,8 @@ class TestListObjectsFromS3Async:
         """Test error handling during object listing."""
         mock_client = Mock()
 
-        with patch('aicapture.utils.get_s3_client', return_value=mock_client):
-            with patch('asyncio.get_running_loop') as mock_loop:
+        with patch("aicapture.utils.get_s3_client", return_value=mock_client):
+            with patch("asyncio.get_running_loop") as mock_loop:
                 mock_loop.return_value.run_in_executor = AsyncMock(
                     side_effect=Exception("List failed")
                 )
@@ -485,9 +485,9 @@ class TestMinioInitialization:
         monkeypatch.setenv("DXA_DATA_BUCKET", "test-minio-bucket")
 
         # Test the initialization logic directly instead of module reload
-        with patch('aicapture.utils.ensure_bucket_exists') as mock_ensure:
+        with patch("aicapture.utils.ensure_bucket_exists") as mock_ensure:
             # Mock get_s3_client to avoid boto3 calls
-            with patch('aicapture.utils.get_s3_client') as mock_get_client:
+            with patch("aicapture.utils.get_s3_client") as mock_get_client:
                 mock_client = Mock()
                 mock_get_client.return_value = mock_client
 
@@ -507,7 +507,7 @@ class TestMinioInitialization:
         """Test that bucket creation is not called for AWS."""
         monkeypatch.setenv("USE_MINIO", "false")
 
-        with patch('aicapture.utils.ensure_bucket_exists'):
+        with patch("aicapture.utils.ensure_bucket_exists"):
             # Re-import to trigger initialization
             import importlib
 

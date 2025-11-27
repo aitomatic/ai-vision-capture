@@ -458,5 +458,5 @@ class VidCapture:
                 "message": f"Unexpected error: {str(e)}",
             }
         finally:
-            if 'cap' in locals() and cap is not None:
+            if "cap" in locals() and cap is not None:
                 cap.release()

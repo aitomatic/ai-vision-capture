@@ -47,7 +47,7 @@ def main():
     print(page_content)
 
     # Print token usage if available
-    if hasattr(vision_model, 'last_token_usage') and vision_model.last_token_usage:
+    if hasattr(vision_model, "last_token_usage") and vision_model.last_token_usage:
         print("\nToken Usage:")
         for key, value in vision_model.last_token_usage.items():
             print(f"{key}: {value}")

@@ -123,7 +123,7 @@ def test_process_video(vid_capture: VidCapture, monkeypatch: MonkeyPatch) -> Non
 async def test_capture_async(vid_capture: VidCapture, monkeypatch: MonkeyPatch) -> None:
     """Test the capture_async method."""
     # Create a few test frames
-    test_frames = [Image.new('RGB', (100, 100), color=(73, 109, 137)) for _ in range(3)]
+    test_frames = [Image.new("RGB", (100, 100), color=(73, 109, 137)) for _ in range(3)]
 
     # Mock the vision model's method
     mock_result = "Test result from vision model"
@@ -145,7 +145,7 @@ async def test_capture_async(vid_capture: VidCapture, monkeypatch: MonkeyPatch) 
 def test_capture(vid_capture: VidCapture, monkeypatch: MonkeyPatch) -> None:
     """Test the synchronous capture method."""
     # Create a few test frames
-    test_frames = [Image.new('RGB', (100, 100), color=(73, 109, 137)) for _ in range(3)]
+    test_frames = [Image.new("RGB", (100, 100), color=(73, 109, 137)) for _ in range(3)]
 
     # Mock the capture_async method
     async def mock_capture_async(*args: Any, **kwargs: Any) -> str:

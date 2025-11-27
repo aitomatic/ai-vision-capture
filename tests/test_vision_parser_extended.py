@@ -81,7 +81,7 @@ def test_image_path() -> str:
 def temp_image_file(temp_cache_dir: Path) -> str:
     """Create a temporary image file for testing."""
     # Create a simple test image
-    img = Image.new('RGB', (100, 100), color='blue')
+    img = Image.new("RGB", (100, 100), color="blue")
     image_path = temp_cache_dir / "test_image.png"
     img.save(image_path)
     return str(image_path)
@@ -165,7 +165,7 @@ class TestVisionParserValidation:
                 assert True
             except Exception:
                 # If an exception is raised, the format validation failed
-                assert False, f"Expected {image_path} to be valid"
+                raise AssertionError(f"Expected {image_path} to be valid") from None
 
     def test_validate_image_format_invalid(self, vision_parser: VisionParser) -> None:
         """Test validation of invalid image formats."""
@@ -174,7 +174,7 @@ class TestVisionParserValidation:
         for image_path in invalid_formats:
             # Use the actual _validate_image method which should raise an exception
             # for invalid formats
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 vision_parser._validate_image(image_path)
 
     def test_validate_image_format_case_insensitive(
@@ -191,7 +191,9 @@ class TestVisionParserValidation:
                 assert True
             except Exception:
                 # If an exception is raised, the format validation failed
-                assert False, f"Expected {image_path} to be valid (case insensitive)"
+                raise AssertionError(
+                    f"Expected {image_path} to be valid (case insensitive)"
+                ) from None
 
 
 class TestVisionParserImageProcessing:
@@ -232,7 +234,9 @@ class TestVisionParserImageProcessing:
         invalid_file = temp_cache_dir / "fake_image.jpg"
         invalid_file.write_text("This is not an image")
 
-        with pytest.raises(Exception):  # Should raise an error when trying to process
+        with pytest.raises(
+            (ValueError, RuntimeError)
+        ):  # Should raise an error when trying to process
             await vision_parser.process_image_async(str(invalid_file))
 
     @pytest.mark.asyncio
@@ -264,11 +268,11 @@ class TestVisionParserPDFProcessing:
         mock_doc.__getitem__ = Mock(return_value=mock_page)
         mock_doc.metadata = {}
 
-        with patch('aicapture.vision_parser.fitz.open', return_value=mock_doc):
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
             # Mock the text extraction method to return proper page data
             with patch.object(
                 vision_parser,
-                '_extract_text_from_pdf',
+                "_extract_text_from_pdf",
                 return_value=[
                     {
                         "hash": "test_hash_123",
@@ -291,14 +295,14 @@ class TestVisionParserPDFProcessing:
         self, vision_parser: VisionParser, test_pdf_path: str
     ) -> None:
         """Test synchronous PDF processing."""
-        with patch('aicapture.vision_parser.fitz.open') as mock_fitz:
+        with patch("aicapture.vision_parser.fitz.open") as mock_fitz:
             mock_doc = MagicMock()
             mock_doc.__len__ = Mock(return_value=1)
             mock_fitz.return_value = mock_doc
 
             # Mock the async method
             with patch.object(
-                vision_parser, 'process_pdf_async', return_value={"test": "result"}
+                vision_parser, "process_pdf_async", return_value={"test": "result"}
             ):
                 result = vision_parser.process_pdf(test_pdf_path)
                 assert result == {"test": "result"}
@@ -314,7 +318,7 @@ class TestVisionParserPDFProcessing:
 
         # Mock the entire PDF processing to focus on cache behavior
         with patch.object(
-            vision_parser, 'process_pdf_async', wraps=vision_parser.process_pdf_async
+            vision_parser, "process_pdf_async", wraps=vision_parser.process_pdf_async
         ) as _:
             # Create a simple result to return
             _ = {
@@ -331,15 +335,15 @@ class TestVisionParserPDFProcessing:
             }
 
             # Mock all the complex PDF operations
-            with patch('aicapture.vision_parser.fitz.open'):
+            with patch("aicapture.vision_parser.fitz.open"):
                 with patch.object(
                     vision_parser,
-                    '_extract_text_from_pdf',
+                    "_extract_text_from_pdf",
                     return_value=[
                         {"hash": "test_hash", "text": "Test", "word_count": 1}
                     ],
                 ):
-                    with patch.object(vision_parser, '_get_or_create_page_image'):
+                    with patch.object(vision_parser, "_get_or_create_page_image"):
                         vision_parser.vision_model.process_image_async = AsyncMock(
                             return_value="Cached content"
                         )
@@ -370,11 +374,11 @@ class TestVisionParserPDFProcessing:
         mock_page.rect.height = 792
         mock_doc.__getitem__ = Mock(return_value=mock_page)
 
-        with patch('aicapture.vision_parser.fitz.open', return_value=mock_doc):
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
             # Mock text extraction
             with patch.object(
                 vision_parser,
-                '_extract_text_from_pdf',
+                "_extract_text_from_pdf",
                 return_value=[
                     {
                         "hash": "metadata_test_hash",
@@ -384,7 +388,7 @@ class TestVisionParserPDFProcessing:
                 ],
             ):
                 # Mock image creation to avoid complex pixmap mocking
-                with patch.object(vision_parser, '_get_or_create_page_image'):
+                with patch.object(vision_parser, "_get_or_create_page_image"):
                     # Mock vision model to avoid actual processing
                     vision_parser.vision_model.process_image_async = AsyncMock(
                         return_value="Test content"
@@ -424,7 +428,7 @@ class TestVisionParserFolderProcessing:
         txt_file.write_text("text content")
 
         with patch.object(
-            vision_parser, 'process_pdf_async', return_value={"test": "result"}
+            vision_parser, "process_pdf_async", return_value={"test": "result"}
         ):
             results = await vision_parser.process_folder_async(str(temp_cache_dir))
 
@@ -436,7 +440,7 @@ class TestVisionParserFolderProcessing:
     ) -> None:
         """Test synchronous folder processing."""
         with patch.object(
-            vision_parser, 'process_folder_async', return_value=[{"test": "result"}]
+            vision_parser, "process_folder_async", return_value=[{"test": "result"}]
         ):
             results = vision_parser.process_folder(str(temp_cache_dir))
             assert results == [{"test": "result"}]
@@ -532,7 +536,7 @@ class TestVisionParserErrorHandling:
     ) -> None:
         """Test error handling during PDF processing."""
         with patch(
-            'aicapture.vision_parser.fitz.open',
+            "aicapture.vision_parser.fitz.open",
             side_effect=Exception("PDF parsing error"),
         ):
             with pytest.raises(Exception, match="PDF parsing error"):
@@ -603,7 +607,7 @@ class TestVisionParserConcurrency:
 
         # Mock PDF processing
         with patch.object(
-            vision_parser, 'process_pdf_async', return_value={"test": "result"}
+            vision_parser, "process_pdf_async", return_value={"test": "result"}
         ):
             # Process files concurrently
             tasks = [

@@ -33,12 +33,15 @@ jobs:
       run: |
         uv run pytest tests/ --cov=aicapture --cov-report=term-missing
 
-    - name: Check code formatting
+    - name: Run linters
       run: |
-        uv run black . --check
-        uv run isort . --check
-        uv run flake8 .
-        uv run mypy .
+        echo "🚀 Starting Ruff check..."
+        uv run ruff check . --exclude ".venv/"
+        echo "✅ Ruff check completed"
+
+        echo "🚀 Starting MyPy type checking..."
+        uv run python -m mypy aicapture --show-error-codes --pretty
+        echo "✅ MyPy type checking completed"
 
   publish:
     needs: test
