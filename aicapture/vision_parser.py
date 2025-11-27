@@ -124,9 +124,7 @@ class VisionParser:
         if self.cloud_bucket:
             from aicapture.cache import S3Cache
 
-            s3_cache = S3Cache(
-                bucket=self.cloud_bucket, prefix="production/data/cache-documents"
-            )
+            s3_cache = S3Cache(bucket=self.cloud_bucket, prefix="production/data/cache-documents")
         self.cache = TwoLayerCache(
             # type: ignore
             file_cache=FileCache(cache_dir),
@@ -178,14 +176,10 @@ class VisionParser:
                 with Image.open(page_image_path) as cached_img:
                     # Load the image data to avoid file handle issues
                     cached_img.load()
-                    logger.info(
-                        f"Using cached image for page {page_idx+1} from {page_image_path}"
-                    )
+                    logger.info(f"Using cached image for page {page_idx + 1} from {page_image_path}")
                     return cached_img  # type: ignore
             except Exception as e:
-                logger.warning(
-                    f"Cached image {page_image_path} is corrupted: {e}. Regenerating..."
-                )
+                logger.warning(f"Cached image {page_image_path} is corrupted: {e}. Regenerating...")
                 # Remove the corrupted file and regenerate
                 try:
                     page_image_path.unlink()
@@ -193,7 +187,7 @@ class VisionParser:
                     pass
 
         # Generate the image if not cached or cache was corrupted
-        logger.info(f"Generating image for page {page_idx+1}")
+        logger.info(f"Generating image for page {page_idx + 1}")
         page = doc[page_idx]
         zoom = self.dpi / 72
         matrix = fitz.Matrix(zoom, zoom)
@@ -241,9 +235,7 @@ class VisionParser:
                 page_text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
                 page_hash = f"p{page_number}_{page_text_hash}"
 
-                results.append(
-                    {"text": text, "hash": page_hash, "page_number": page_number}
-                )
+                results.append({"text": text, "hash": page_hash, "page_number": page_number})
         return results
 
     def _make_user_message(self, text_content: str) -> str:
@@ -262,18 +254,14 @@ class VisionParser:
             logger.debug(f"Waiting for semaphore to process page {page_number}")
             # Process with vision model
             async with self.__class__._semaphore:
-                logger.debug(
-                    f"Acquired semaphore - Started processing page {page_number}"
-                )
+                logger.debug(f"Acquired semaphore - Started processing page {page_number}")
                 enhanced_prompt = self._make_user_message(text_content)
 
                 content = await self.vision_model.process_image_async(
                     image,
                     prompt=enhanced_prompt,
                 )
-                logger.debug(
-                    f"Completed processing page {page_number} - Releasing semaphore"
-                )
+                logger.debug(f"Completed processing page {page_number} - Releasing semaphore")
 
             # Clean the content to remove base64 and repetitive spaces
             cleaned_content = self.content_cleaner.clean_content(content.strip())
@@ -411,9 +399,7 @@ class VisionParser:
 
                 # Skip if page is already in partial results
                 if page_number in partial_results:
-                    logger.info(
-                        f"Page {page_number} already in partial results, skipping"
-                    )
+                    logger.info(f"Page {page_number} already in partial results, skipping")
                     continue
 
                 # Get page info with text and hash
@@ -422,15 +408,11 @@ class VisionParser:
                 text_content = page_info["text"]
 
                 # Get the page image from cache or generate it
-                img = await self._get_or_create_page_image(
-                    doc, page_idx, page_hash, file_hash
-                )
+                img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
                 page_images.append(img)
 
                 # Create task to process the page
-                task = asyncio.create_task(
-                    self.process_page_async(img, page_number, page_hash, text_content)
-                )
+                task = asyncio.create_task(self.process_page_async(img, page_number, page_hash, text_content))
                 tasks.append(task)
 
             # Process all tasks concurrently
@@ -440,9 +422,7 @@ class VisionParser:
                 duration = time.time() - start_time
 
                 # Calculate words in batch
-                batch_words = sum(
-                    len(page["page_content"].split()) for page in batch_results
-                )
+                batch_words = sum(len(page["page_content"].split()) for page in batch_results)
                 logger.info(f"Completed batch in {duration:.2f} seconds")
 
                 # Add batch results to all pages
@@ -463,9 +443,7 @@ class VisionParser:
         # Add already processed pages from partial results for this chunk
         for page_idx in range(chunk_start, chunk_end):
             page_number = page_idx + 1
-            if page_number in partial_results and not any(
-                p["page_number"] == page_number for p in all_pages
-            ):
+            if page_number in partial_results and not any(p["page_number"] == page_number for p in all_pages):
                 logger.info(f"Adding cached result for page {page_number}")
                 all_pages.append(partial_results[page_number])
                 total_words += len(partial_results[page_number]["page_content"].split())
@@ -525,9 +503,7 @@ class VisionParser:
             logger.info(f"Found {len(partial_results)} cached pages")
 
             # Extract text content and page hashes from PDF
-            logger.info(
-                f"Extracting text content and calculating page hashes for {pdf_file}"
-            )
+            logger.info(f"Extracting text content and calculating page hashes for {pdf_file}")
             page_extractions = self._extract_text_from_pdf(str(pdf_file))
 
             # Process PDF in chunks to avoid memory issues with large PDFs
@@ -562,9 +538,7 @@ class VisionParser:
                     doc.close()
 
             # Compile final results
-            result = await self._compile_results(
-                pdf_file, cache_key, all_pages, total_words, total_pages
-            )
+            result = await self._compile_results(pdf_file, cache_key, all_pages, total_words, total_pages)
 
             # Cache the results
             logger.info("Saving results to cache")
@@ -795,23 +769,18 @@ class VisionParser:
         folder = Path(folder_path)
         if not folder.exists() or not folder.is_dir():
             logger.error(f"Folder not found or not a directory: {folder_path}")
-            raise FileNotFoundError(
-                f"Folder not found or not a directory: {folder_path}"
-            )
+            raise FileNotFoundError(f"Folder not found or not a directory: {folder_path}")
 
         results = []
 
         for file_path in folder.iterdir():
             try:
                 if file_path.is_file():
-                    if file_path.suffix.lower() == '.pdf':
+                    if file_path.suffix.lower() == ".pdf":
                         logger.info(f"Processing PDF file: {file_path.name}")
                         result = await self.process_pdf_async(str(file_path))
                         results.append(result)
-                    elif (
-                        file_path.suffix.lower().lstrip('.')
-                        in self.SUPPORTED_IMAGE_FORMATS
-                    ):
+                    elif file_path.suffix.lower().lstrip(".") in self.SUPPORTED_IMAGE_FORMATS:
                         logger.info(f"Processing image file: {file_path.name}")
                         result = await self.process_image_async(str(file_path))
                         results.append(result)
@@ -821,9 +790,7 @@ class VisionParser:
                 logger.error(f"Error processing file {file_path.name}: {str(e)}")
                 continue
 
-        logger.info(
-            f"Completed processing folder: {folder_path} - Processed {len(results)} files"
-        )
+        logger.info(f"Completed processing folder: {folder_path} - Processed {len(results)} files")
         return results
 
     async def _compile_results(  # noqa
@@ -902,9 +869,7 @@ class VisionParser:
                     first_page = doc[0]
                     metadata["page_width"] = first_page.rect.width
                     metadata["page_height"] = first_page.rect.height
-                    metadata["page_size"] = (
-                        f"{first_page.rect.width}x{first_page.rect.height}"
-                    )
+                    metadata["page_size"] = f"{first_page.rect.width}x{first_page.rect.height}"
 
             return {"status": "success", **metadata}
 

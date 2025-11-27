@@ -61,9 +61,7 @@ async def list_s3_files(bucket: str, prefix: str) -> List[str]:
     return files
 
 
-async def upload_file_to_s3_async(
-    bucket: str, file_or_data: Union[str, bytes], s3_path: str
-) -> None:
+async def upload_file_to_s3_async(bucket: str, file_or_data: Union[str, bytes], s3_path: str) -> None:
     """Async version of upload_file_to_s3.
 
     Args:
@@ -78,17 +76,13 @@ async def upload_file_to_s3_async(
         if isinstance(file_or_data, str):
             # If it's a file path, use upload_file
             logger.info(f"Uploading file {file_or_data} to {bucket}/{s3_path}")
-            await loop.run_in_executor(
-                None, s3_client.upload_file, file_or_data, bucket, s3_path
-            )
+            await loop.run_in_executor(None, s3_client.upload_file, file_or_data, bucket, s3_path)
         else:
             # If it's bytes, use put_object
             logger.info(f"Uploading data to {bucket}/{s3_path}")
             await loop.run_in_executor(
                 None,
-                lambda: s3_client.put_object(
-                    Bucket=bucket, Key=s3_path, Body=file_or_data
-                ),
+                lambda: s3_client.put_object(Bucket=bucket, Key=s3_path, Body=file_or_data),
             )
         logger.info("Uploaded successfully")
     except Exception as e:
@@ -100,9 +94,7 @@ async def delete_file_from_s3_async(bucket: str, key: str) -> None:
     try:
         loop = asyncio.get_running_loop()
         s3_client = get_s3_client()
-        await loop.run_in_executor(
-            None, lambda: s3_client.delete_object(Bucket=bucket, Key=key)
-        )
+        await loop.run_in_executor(None, lambda: s3_client.delete_object(Bucket=bucket, Key=key))
     except Exception as e:
         logger.error(f"Error deleting from S3: {e}")
 
@@ -120,18 +112,14 @@ async def get_file_from_s3_async(bucket: str, key: str) -> Optional[bytes]:
     try:
         loop = asyncio.get_running_loop()
         s3_client = get_s3_client()
-        response = await loop.run_in_executor(
-            None, lambda: s3_client.get_object(Bucket=bucket, Key=key)
-        )
+        response = await loop.run_in_executor(None, lambda: s3_client.get_object(Bucket=bucket, Key=key))
         return await loop.run_in_executor(None, lambda: response["Body"].read())
     except Exception as e:
         logger.debug(f"Could not get file from S3: {str(e)}")
         return None
 
 
-async def download_file_from_s3_async(
-    bucket: str, s3_key: str, local_path: str
-) -> bool:
+async def download_file_from_s3_async(bucket: str, s3_key: str, local_path: str) -> bool:
     """Download a file from S3 to a local path asynchronously.
 
     Args:
@@ -147,9 +135,7 @@ async def download_file_from_s3_async(
         s3_client = get_s3_client()
 
         # Use run_in_executor to make the blocking download_file call non-blocking
-        await loop.run_in_executor(
-            None, lambda: s3_client.download_file(bucket, s3_key, local_path)
-        )
+        await loop.run_in_executor(None, lambda: s3_client.download_file(bucket, s3_key, local_path))
         return True
     except Exception as e:
         logger.error(f"Error downloading {s3_key} from S3: {str(e)}")
@@ -171,16 +157,12 @@ async def list_objects_from_s3_async(bucket: str, prefix: str) -> List[Dict[str,
         s3_client = get_s3_client()
 
         # Use run_in_executor to make the blocking list_objects_v2 call non-blocking
-        response = await loop.run_in_executor(
-            None, lambda: s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        )
+        response = await loop.run_in_executor(None, lambda: s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix))
 
         # Explicitly handle the typing
         if "Contents" in response and isinstance(response["Contents"], list):
             # Cast contents to the expected type
-            contents: List[Dict[str, Any]] = cast(
-                List[Dict[str, Any]], response["Contents"]
-            )
+            contents: List[Dict[str, Any]] = cast(List[Dict[str, Any]], response["Contents"])
             return contents
 
         # Return empty list if no contents

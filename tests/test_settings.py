@@ -135,9 +135,7 @@ class TestVisionModelConfig:
         """Test validation with missing model."""
         config = VisionModelConfig(model="", api_key="test_key")
 
-        with pytest.raises(
-            ValueError, match="Missing required configuration 'model' for TestProvider"
-        ):
+        with pytest.raises(ValueError, match="Missing required configuration 'model' for TestProvider"):
             config.validate("TestProvider")
 
     def test_validate_missing_api_key(self) -> None:
@@ -290,9 +288,7 @@ class TestAzureOpenAIVisionConfig:
         with pytest.raises(ValueError):
             config.validate("Azure OpenAI")
 
-    def test_validation_error_missing_api_version(
-        self, monkeypatch: MonkeyPatch
-    ) -> None:
+    def test_validation_error_missing_api_version(self, monkeypatch: MonkeyPatch) -> None:
         """Test validation error when API version is missing."""
         # Test validation method directly with empty API version
         config = AzureOpenAIVisionConfig(model="gpt-4", api_key="test_key")
@@ -318,16 +314,10 @@ class TestAnthropicAWSBedrockConfig:
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test_secret_key")
         monkeypatch.setenv("AWS_SESSION_TOKEN", "test_session_token")
         monkeypatch.setenv("AWS_REGION", "us-west-2")
-        monkeypatch.setenv(
-            "AWS_BEDROCK_VPC_ENDPOINT_URL", "https://bedrock.vpc.amazonaws.com"
-        )
-        monkeypatch.setenv(
-            "ANTHROPIC_BEDROCK_MODEL", "anthropic.claude-3-haiku-20240307-v1:0"
-        )
+        monkeypatch.setenv("AWS_BEDROCK_VPC_ENDPOINT_URL", "https://bedrock.vpc.amazonaws.com")
+        monkeypatch.setenv("ANTHROPIC_BEDROCK_MODEL", "anthropic.claude-3-haiku-20240307-v1:0")
 
-        config = AnthropicAWSBedrockConfig(
-            model="anthropic.claude-3-haiku-20240307-v1:0"
-        )
+        config = AnthropicAWSBedrockConfig(model="anthropic.claude-3-haiku-20240307-v1:0")
 
         assert config.model == "anthropic.claude-3-haiku-20240307-v1:0"
 
@@ -345,9 +335,7 @@ class TestAnthropicAWSBedrockConfig:
         for var in env_vars:
             monkeypatch.delenv(var, raising=False)
 
-        config = AnthropicAWSBedrockConfig(
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0"
-        )
+        config = AnthropicAWSBedrockConfig(model="anthropic.claude-3-5-sonnet-20241022-v2:0")
 
         assert config.model == "anthropic.claude-3-5-sonnet-20241022-v2:0"
 

@@ -79,15 +79,9 @@ class AnthropicVisionConfig(VisionModelConfig):
 class OpenAIVisionConfig(VisionModelConfig):
     """Configuration for OpenAI GPT-4 Vision models."""
 
-    api_key: str = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv(
-        "OPENAI_API_KEY", ""
-    )
-    model: str = os.getenv("OPENAI_VISION_MODEL", "") or os.getenv(
-        "OPENAI_MODEL", "gpt-4.1"
-    )
-    api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv(
-        "OPENAI_BASE_URL", "https://api.openai.com/v1"
-    )
+    api_key: str = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+    model: str = os.getenv("OPENAI_VISION_MODEL", "") or os.getenv("OPENAI_MODEL", "gpt-4.1")
+    api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "5000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
 
@@ -112,9 +106,7 @@ class AzureOpenAIVisionConfig(VisionModelConfig):
 
     api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
     model: str = os.getenv("AZURE_OPENAI_MODEL", "gpt-4.1")
-    api_base: str = os.getenv(
-        "AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com"
-    )
+    api_base: str = os.getenv("AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com")
     api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-11-01-preview")
 
     def __post_init__(self) -> None:
@@ -132,7 +124,5 @@ class AnthropicAWSBedrockConfig(VisionModelConfig):
     aws_session_token: Optional[str] = os.getenv("AWS_SESSION_TOKEN", None)
     aws_region: str = os.getenv("AWS_REGION", "us-east-1")
     aws_vpc_endpoint_url: str = os.getenv("AWS_BEDROCK_VPC_ENDPOINT_URL", "")
-    model: str = os.getenv(
-        "ANTHROPIC_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    )  # noqa
+    model: str = os.getenv("ANTHROPIC_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")  # noqa
     api_key: str = os.getenv("ANTHROPIC_BEDROCK_API_KEY", "dummy")  # dont need this

@@ -79,14 +79,10 @@ class VidCapture:
         # Initialize S3 cache if bucket is provided
         s3_cache = None
         if self.config.cloud_bucket:
-            s3_cache = S3Cache(
-                bucket=self.config.cloud_bucket, prefix="production/video_results"
-            )
+            s3_cache = S3Cache(bucket=self.config.cloud_bucket, prefix="production/video_results")
 
         # Set up two-layer cache
-        self.cache = TwoLayerCache(
-            file_cache=file_cache, s3_cache=s3_cache, invalidate_cache=invalidate_cache
-        )
+        self.cache = TwoLayerCache(file_cache=file_cache, s3_cache=s3_cache, invalidate_cache=invalidate_cache)
 
     def _validate_video(self, video_path: str) -> None:
         """
@@ -98,12 +94,9 @@ class VidCapture:
         Raises:
             VideoValidationError: If validation fails
         """
-        if not any(
-            video_path.lower().endswith(fmt) for fmt in self.config.supported_formats
-        ):
+        if not any(video_path.lower().endswith(fmt) for fmt in self.config.supported_formats):
             raise VideoValidationError(
-                f"Unsupported video format. Supported formats: "
-                f"{self.config.supported_formats}"
+                f"Unsupported video format. Supported formats: " f"{self.config.supported_formats}"
             )
 
         cap = cv2.VideoCapture(video_path)
@@ -117,8 +110,7 @@ class VidCapture:
 
         if duration > self.config.max_duration_seconds:
             raise VideoValidationError(
-                f"Video duration ({duration:.1f}s) exceeds maximum allowed "
-                f"({self.config.max_duration_seconds}s)"
+                f"Video duration ({duration:.1f}s) exceeds maximum allowed " f"({self.config.max_duration_seconds}s)"
             )
 
         cap.release()
@@ -140,10 +132,7 @@ class VidCapture:
         # Resize if needed while maintaining aspect ratio
         if self.config.resize_frames:
             width, height = image.size
-            if (
-                width > self.config.target_frame_size[0]
-                or height > self.config.target_frame_size[1]
-            ):
+            if width > self.config.target_frame_size[0] or height > self.config.target_frame_size[1]:
                 scale = min(
                     self.config.target_frame_size[0] / width,
                     self.config.target_frame_size[1] / height,
@@ -207,9 +196,7 @@ class VidCapture:
         cap.release()
         return frames, frame_interval
 
-    async def capture_async(
-        self, prompt: str, images: List[Image.Image], **kwargs: Any
-    ) -> str:
+    async def capture_async(self, prompt: str, images: List[Image.Image], **kwargs: Any) -> str:
         """
         Extract knowledge from a list of images using a vision model.
 
@@ -227,9 +214,7 @@ class VidCapture:
         print(f"Analyzing {len(images)} images with vision model")
 
         # Process the images with the vision model
-        result = await self.vision_model.process_image_async(
-            image=images, prompt=prompt, **kwargs
-        )
+        result = await self.vision_model.process_image_async(image=images, prompt=prompt, **kwargs)
 
         return result
 
@@ -362,9 +347,7 @@ class VidCapture:
 
         return result
 
-    async def process_video_async(
-        self, video_path: str, prompt: str, **kwargs: Any
-    ) -> str:
+    async def process_video_async(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronous wrapper for process_video.
 
@@ -458,5 +441,5 @@ class VidCapture:
                 "message": f"Unexpected error: {str(e)}",
             }
         finally:
-            if 'cap' in locals() and cap is not None:
+            if "cap" in locals() and cap is not None:
                 cap.release()

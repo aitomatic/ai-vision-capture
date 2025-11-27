@@ -26,11 +26,11 @@ def test_image_path() -> str:
 def test_image_base64() -> str:
     """Create base64 encoded test image."""
     # Create a simple 10x10 RGB image
-    img = Image.new('RGB', (10, 10), color='red')
+    img = Image.new("RGB", (10, 10), color="red")
     buffered = BytesIO()
     img.save(buffered, format="JPEG")
     img_bytes = buffered.getvalue()
-    return base64.b64encode(img_bytes).decode('utf-8')
+    return base64.b64encode(img_bytes).decode("utf-8")
 
 
 @pytest.fixture
@@ -57,8 +57,8 @@ class TestCreateDefaultVisionModel:
     def test_create_anthropic_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating Anthropic vision model."""
         # Mock the USE_VISION at module level
-        with patch('aicapture.vision_models.USE_VISION', 'claude'):
-            with patch('aicapture.vision_models.AnthropicVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "claude"):
+            with patch("aicapture.vision_models.AnthropicVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -67,8 +67,8 @@ class TestCreateDefaultVisionModel:
 
     def test_create_openai_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating OpenAI vision model."""
-        with patch('aicapture.vision_models.USE_VISION', 'openai'):
-            with patch('aicapture.vision_models.OpenAIVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "openai"):
+            with patch("aicapture.vision_models.OpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -77,8 +77,8 @@ class TestCreateDefaultVisionModel:
 
     def test_create_gemini_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating Gemini vision model."""
-        with patch('aicapture.vision_models.USE_VISION', 'gemini'):
-            with patch('aicapture.vision_models.GeminiVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "gemini"):
+            with patch("aicapture.vision_models.GeminiVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -87,8 +87,8 @@ class TestCreateDefaultVisionModel:
 
     def test_create_azure_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating Azure OpenAI vision model."""
-        with patch('aicapture.vision_models.USE_VISION', 'azure-openai'):
-            with patch('aicapture.vision_models.AzureOpenAIVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "azure-openai"):
+            with patch("aicapture.vision_models.AzureOpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -97,10 +97,8 @@ class TestCreateDefaultVisionModel:
 
     def test_create_bedrock_model(self, monkeypatch: MonkeyPatch) -> None:
         """Test creating Anthropic AWS Bedrock vision model."""
-        with patch('aicapture.vision_models.USE_VISION', 'anthropic_bedrock'):
-            with patch(
-                'aicapture.vision_models.AnthropicAWSBedrockVisionModel'
-            ) as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "anthropic_bedrock"):
+            with patch("aicapture.vision_models.AnthropicAWSBedrockVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -116,17 +114,15 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
-        with patch('aicapture.vision_models.USE_VISION', 'unsupported_model'):
-            with pytest.raises(
-                ValueError, match="No valid API key found for any vision model provider"
-            ):
+        with patch("aicapture.vision_models.USE_VISION", "unsupported_model"):
+            with pytest.raises(ValueError, match="No valid API key found for any vision model provider"):
                 create_default_vision_model()
 
     def test_create_model_with_exception(self, monkeypatch: MonkeyPatch) -> None:
         """Test error handling when model creation fails."""
-        with patch('aicapture.vision_models.USE_VISION', 'openai'):
+        with patch("aicapture.vision_models.USE_VISION", "openai"):
             with patch(
-                'aicapture.vision_models.OpenAIVisionModel',
+                "aicapture.vision_models.OpenAIVisionModel",
                 side_effect=Exception("Model creation failed"),
             ):
                 with pytest.raises(Exception, match="Model creation failed"):
@@ -141,8 +137,8 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
 
-        with patch('aicapture.vision_models.USE_VISION', 'auto'):
-            with patch('aicapture.vision_models.GeminiVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "auto"):
+            with patch("aicapture.vision_models.GeminiVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -157,8 +153,8 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
 
-        with patch('aicapture.vision_models.USE_VISION', 'auto'):
-            with patch('aicapture.vision_models.OpenAIVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "auto"):
+            with patch("aicapture.vision_models.OpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -174,8 +170,8 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_azure_key")
 
-        with patch('aicapture.vision_models.USE_VISION', 'auto'):
-            with patch('aicapture.vision_models.AzureOpenAIVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "auto"):
+            with patch("aicapture.vision_models.AzureOpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -191,8 +187,8 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_anthropic_key")
 
-        with patch('aicapture.vision_models.USE_VISION', 'auto'):
-            with patch('aicapture.vision_models.AnthropicVisionModel') as mock_model:
+        with patch("aicapture.vision_models.USE_VISION", "auto"):
+            with patch("aicapture.vision_models.AnthropicVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
                 result = create_default_vision_model()
@@ -205,25 +201,25 @@ class TestIsVisionModelInstalled:
 
     def test_openai_installed(self) -> None:
         """Test that OpenAI is detected as installed."""
-        with patch('aicapture.vision_models.USE_VISION', 'openai'):
+        with patch("aicapture.vision_models.USE_VISION", "openai"):
             result = is_vision_model_installed()
             assert result is True
 
     def test_anthropic_installed(self) -> None:
         """Test that Anthropic is detected as installed."""
-        with patch('aicapture.vision_models.USE_VISION', 'claude'):
+        with patch("aicapture.vision_models.USE_VISION", "claude"):
             result = is_vision_model_installed()
             assert result is True
 
     def test_model_not_installed(self) -> None:
         """Test that unsupported models are detected as not installed."""
-        with patch('aicapture.vision_models.USE_VISION', 'unsupported_model'):
+        with patch("aicapture.vision_models.USE_VISION", "unsupported_model"):
             result = is_vision_model_installed()
             assert result is False
 
     def test_unknown_model(self) -> None:
         """Test handling of unknown model type."""
-        with patch('aicapture.vision_models.USE_VISION', 'random_unknown_model'):
+        with patch("aicapture.vision_models.USE_VISION", "random_unknown_model"):
             result = is_vision_model_installed()
             assert result is False
 
@@ -235,21 +231,17 @@ class TestAnthropicVisionModel:
         """Test Anthropic model initialization with defaults."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
             # Test with explicit values since defaults are set at import time
-            model = AnthropicVisionModel(
-                model="claude-3-5-sonnet-20241022", api_key="test_key"
-            )
+            model = AnthropicVisionModel(model="claude-3-5-sonnet-20241022", api_key="test_key")
             # Check that we get the expected model and api key
             assert model.model == "claude-3-5-sonnet-20241022"
             assert model.api_key == "test_key"
 
     def test_init_with_custom_params(self, monkeypatch: MonkeyPatch) -> None:
         """Test Anthropic model initialization with custom parameters."""
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
-            model = AnthropicVisionModel(
-                model="claude-3-haiku-20240307", api_key="custom_key"
-            )
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
+            model = AnthropicVisionModel(model="claude-3-haiku-20240307", api_key="custom_key")
             assert model.model == "claude-3-haiku-20240307"
             assert model.api_key == "custom_key"
 
@@ -262,11 +254,11 @@ class TestAnthropicVisionModel:
         """Test image optimization."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
             model = AnthropicVisionModel()
 
             # Create a test image that needs optimization
-            large_image = Image.new('RGB', (2000, 2000), color='red')
+            large_image = Image.new("RGB", (2000, 2000), color="red")
             optimized = model._optimize_image(large_image)
 
             # Should be optimized to the optimal size
@@ -274,7 +266,7 @@ class TestAnthropicVisionModel:
 
     def test_convert_image_to_base64(self) -> None:
         """Test static method for image conversion."""
-        test_image = Image.new('RGB', (10, 10), color='blue')
+        test_image = Image.new("RGB", (10, 10), color="blue")
         base64_str, media_type = VisionModel.convert_image_to_base64(test_image)
 
         assert isinstance(base64_str, str)
@@ -301,15 +293,13 @@ class TestAnthropicVisionModel:
         mock_client.messages.create.return_value = mock_response
 
         # Mock both the class and the property
-        with patch(
-            'aicapture.vision_models.anthropic.AsyncAnthropic', return_value=mock_client
-        ):
+        with patch("aicapture.vision_models.anthropic.AsyncAnthropic", return_value=mock_client):
             model = AnthropicVisionModel()
             # Override the aclient property to return our mock
             model._aclient = mock_client
 
             # Create a simple test image
-            test_image = Image.new('RGB', (100, 100), color='green')
+            test_image = Image.new("RGB", (100, 100), color="green")
             result = await model.process_image_async(test_image, "Describe this image")
 
             assert result == "Anthropic image response"
@@ -323,7 +313,7 @@ class TestVisionModelUtilities:
         """Test token usage logging."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
             model = AnthropicVisionModel()
 
             usage_data = {"input_tokens": 100, "output_tokens": 50}
@@ -335,11 +325,11 @@ class TestVisionModelUtilities:
         """Test image size validation."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
             model = AnthropicVisionModel()
 
             # Create an image that's too large
-            huge_image = Image.new('RGB', (10000, 10000), color='red')
+            huge_image = Image.new("RGB", (10000, 10000), color="red")
 
             with pytest.raises(ValueError, match="Image dimensions exceed maximum"):
                 model._optimize_image(huge_image)
@@ -348,11 +338,11 @@ class TestVisionModelUtilities:
         """Test batch image optimization."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
-        with patch('aicapture.vision_models.anthropic.Anthropic'):
+        with patch("aicapture.vision_models.anthropic.Anthropic"):
             model = AnthropicVisionModel()
 
             # Create an image for batch processing
-            batch_image = Image.new('RGB', (1500, 1500), color='blue')
+            batch_image = Image.new("RGB", (1500, 1500), color="blue")
             optimized = model._optimize_image(batch_image, is_batch=True)
 
             # Should be within batch size limits

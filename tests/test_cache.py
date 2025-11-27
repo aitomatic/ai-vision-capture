@@ -88,9 +88,7 @@ class TestFileCache:
         assert new_cache_dir.exists()
         assert cache.cache_dir == new_cache_dir
 
-    def test_set_and_get(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    def test_set_and_get(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test storing and retrieving data from cache."""
         cache = FileCache(str(temp_cache_dir))
         key = "test_key"
@@ -120,9 +118,7 @@ class TestFileCache:
         result = cache.get(key)
         assert result is None
 
-    def test_invalidate(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    def test_invalidate(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test invalidating cache entries."""
         cache = FileCache(str(temp_cache_dir))
         key = "test_key"
@@ -142,9 +138,7 @@ class TestFileCache:
         result = cache.invalidate("nonexistent_key")
         assert result is False
 
-    def test_clear(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    def test_clear(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test clearing all cache entries."""
         cache = FileCache(str(temp_cache_dir))
 
@@ -249,9 +243,7 @@ class TestTwoLayerCache:
         assert cache.s3_cache == s3_cache
 
     @pytest.mark.asyncio
-    async def test_get_file_cache_hit(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    async def test_get_file_cache_hit(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test getting data when it exists in file cache."""
         file_cache = FileCache(str(temp_cache_dir))
         cache = TwoLayerCache(file_cache, None)
@@ -273,9 +265,7 @@ class TestTwoLayerCache:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_set_file_cache_only(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    async def test_set_file_cache_only(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test setting data in file cache only."""
         file_cache = FileCache(str(temp_cache_dir))
         cache = TwoLayerCache(file_cache, None)
@@ -287,9 +277,7 @@ class TestTwoLayerCache:
         assert file_cache.get(key) == sample_cache_data
 
     @pytest.mark.asyncio
-    async def test_invalidate_file_cache_only(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    async def test_invalidate_file_cache_only(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test invalidating data from file cache only."""
         file_cache = FileCache(str(temp_cache_dir))
         cache = TwoLayerCache(file_cache, None)
@@ -304,9 +292,7 @@ class TestTwoLayerCache:
         assert file_cache.get(key) is None
 
     @pytest.mark.asyncio
-    async def test_clear_file_cache_only(
-        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
-    ) -> None:
+    async def test_clear_file_cache_only(self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]) -> None:
         """Test clearing file cache only."""
         file_cache = FileCache(str(temp_cache_dir))
         cache = TwoLayerCache(file_cache, None)

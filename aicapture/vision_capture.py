@@ -21,9 +21,7 @@ class VisionCapture:
         vision_parser: Optional[VisionParser] = None,
     ):
         self.vision_model = vision_model or create_default_vision_model()
-        self.vision_parser = vision_parser or VisionParser(
-            vision_model=self.vision_model
-        )
+        self.vision_parser = vision_parser or VisionParser(vision_model=self.vision_model)
         # self.vision_parser.invalidate_cache = True
 
     async def _parse_file(self, file_path: str) -> Dict[str, Any]:
@@ -43,9 +41,7 @@ class VisionCapture:
         """
         doc_json = await self._parse_file(file_path)
         # Extract content from file_object structure
-        content = "\n".join(
-            page["page_content"] for page in doc_json["file_object"]["pages"]
-        )
+        content = "\n".join(page["page_content"] for page in doc_json["file_object"]["pages"])
         return await self._capture_content(content, template)
 
     async def _capture_content(self, content: str, template: str) -> str:

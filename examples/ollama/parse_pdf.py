@@ -8,7 +8,6 @@ model = "qwen2.5vl:32b"
 
 
 def main():
-
     vision_model = OpenAIVisionModel(
         model=model,
         api_base="http://localhost:11434/v1",
@@ -27,7 +26,7 @@ def main():
         3. Important procedures
         4. Tables and data (in markdown)
         5. Diagrams and figures
-        
+
         Preserve all numerical values and maintain document structure.
         """,
     )

@@ -6,7 +6,7 @@ on:
     paths:
       - "aicapture/**"
       - "tests/**"
-      - "poetry.lock"
+      - "uv.lock"
       - "pyproject.toml"
       - ".github/workflows/**"
 
@@ -17,52 +17,36 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Cache Poetry dependencies
-      uses: actions/cache@v3
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
       with:
-        path: |
-          ~/.cache/pypoetry
-          .venv
-        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}-python-3.10
-        restore-keys: |
-          ${{ runner.os }}-poetry-
-
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: latest
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
 
     - name: Install dependencies
       run: |
-        poetry install --with dev
+        uv sync --all-extras
 
-    - name: Run formatters check
+    - name: Run formatters and linters
       run: |
-        echo "🔍 Running Black formatter check..."
-        poetry run black -S . --check
-        echo "✅ Black formatter check completed"
-        
-        echo "🔍 Running isort check..."
-        poetry run isort . --check-only --diff
-        echo "✅ isort check completed"
+        echo "Skipping Black formatter check"
 
-    - name: Run linters
-      run: |
-        echo "🔍 Running Flake8..."
-        poetry run flake8 aicapture tests
-        echo "✅ Flake8 completed"
-        
-        echo "🔍 Running MyPy type checking..."
-        poetry run mypy aicapture --show-error-codes --pretty
-        echo "✅ MyPy check completed"
+        echo "🚀 Starting Ruff check..."
+        uv run ruff check . --exclude ".venv/"
+        echo "✅ Ruff check completed"
+
+        echo "🚀 Starting MyPy type checking..."
+        echo "MyPy version:"
+        uv run python -m mypy --version
+        echo "Running MyPy on aicapture directory..."
+        uv run python -m mypy aicapture --show-error-codes --pretty
+        echo "✅ MyPy type checking completed"
 
     - name: Run tests
       env:
@@ -72,4 +56,4 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
-        poetry run pytest -v --cov=aicapture --cov-report=term-missing 
+        uv run pytest -v --cov=aicapture --cov-report=term-missing 

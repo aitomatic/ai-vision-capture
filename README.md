@@ -218,9 +218,21 @@ result = parser.process_pdf(
 For local development:
 
 1. Clone the repository
-2. Copy `.env.template` to `.env`
-3. Edit `.env` with your settings
-4. Install development dependencies: `pip install -e ".[dev]"`
+2. Install [uv](https://github.com/astral-sh/uv) if you haven't already:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+3. Copy `.env.template` to `.env` and edit with your settings
+4. Install dependencies:
+   ```bash
+   uv sync --all-extras
+   ```
+5. Run tests and checks:
+   ```bash
+   make test  # Run tests
+   make lint  # Run linters
+   make format  # Format code
+   ```
 
 See `.env.template` for all available configuration options.
 

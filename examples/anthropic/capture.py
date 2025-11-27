@@ -44,9 +44,7 @@ async def main() -> None:
 
     try:
         # Process document and extract structured data
-        result: Dict[str, Any] = await capture.capture(
-            file_path=str(doc_path), template=ALARM_TEMPLATE
-        )
+        result: Dict[str, Any] = await capture.capture(file_path=str(doc_path), template=ALARM_TEMPLATE)
 
         # Print the structured output
         print("Extracted Data:")

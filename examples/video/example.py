@@ -13,9 +13,7 @@ def run_example():  # Example usage
     # Extract frames
     try:
         frames, interval = video_capture.extract_frames(vid_file)
-        print(
-            f"Successfully extracted {len(frames)} frames at {interval:.2f}s intervals"
-        )
+        print(f"Successfully extracted {len(frames)} frames at {interval:.2f}s intervals")
 
         # Save frames as example (optional)
         output_dir = Path("tmp/output_frames")

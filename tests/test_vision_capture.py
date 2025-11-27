@@ -35,9 +35,7 @@ class MockVisionModel(VisionModel):
     async def process_text_async(self, messages) -> str:
         return "Mock structured data extraction result"
 
-    def process_image(
-        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs
-    ) -> str:
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs) -> str:
         return "Mock image processing result"
 
     async def process_image_async(self, image, prompt: str, **kwargs) -> str:
@@ -93,7 +91,7 @@ def test_init_default() -> None:
     capture = VisionCapture()
     assert capture.vision_model is not None
     assert capture.vision_parser is not None
-    assert hasattr(capture.vision_parser, 'vision_model')
+    assert hasattr(capture.vision_parser, "vision_model")
 
 
 def test_init_with_custom_vision_model(mock_vision_model: MockVisionModel) -> None:
@@ -104,13 +102,9 @@ def test_init_with_custom_vision_model(mock_vision_model: MockVisionModel) -> No
     assert capture.vision_parser.vision_model == mock_vision_model
 
 
-def test_init_with_custom_parser(
-    mock_vision_model: MockVisionModel, mock_vision_parser: VisionParser
-) -> None:
+def test_init_with_custom_parser(mock_vision_model: MockVisionModel, mock_vision_parser: VisionParser) -> None:
     """Test VisionCapture initialization with custom parser."""
-    capture = VisionCapture(
-        vision_model=mock_vision_model, vision_parser=mock_vision_parser
-    )
+    capture = VisionCapture(vision_model=mock_vision_model, vision_parser=mock_vision_parser)
     assert capture.vision_model == mock_vision_model
     assert capture.vision_parser == mock_vision_parser
 
@@ -127,9 +121,7 @@ async def test_parse_file_pdf(
     async def mock_process_pdf_async(pdf_path: str) -> Dict[str, Any]:
         return sample_document_result
 
-    monkeypatch.setattr(
-        vision_capture.vision_parser, "process_pdf_async", mock_process_pdf_async
-    )
+    monkeypatch.setattr(vision_capture.vision_parser, "process_pdf_async", mock_process_pdf_async)
 
     # Test PDF parsing
     result = await vision_capture._parse_file("test.pdf")
@@ -150,9 +142,7 @@ async def test_parse_file_image(
     async def mock_process_image_async(image_path: str) -> Dict[str, Any]:
         return sample_document_result
 
-    monkeypatch.setattr(
-        vision_capture.vision_parser, "process_image_async", mock_process_image_async
-    )
+    monkeypatch.setattr(vision_capture.vision_parser, "process_image_async", mock_process_image_async)
 
     # Test image parsing for different formats
     for image_format in [".jpg", ".jpeg", ".png", ".tiff", ".webp", ".bmp"]:
@@ -266,18 +256,14 @@ async def test_capture_content_with_complex_template(
 
 
 @pytest.mark.asyncio
-async def test_capture_with_real_files(
-    vision_capture: VisionCapture, monkeypatch: MonkeyPatch
-) -> None:
+async def test_capture_with_real_files(vision_capture: VisionCapture, monkeypatch: MonkeyPatch) -> None:
     """Test capture with real file paths (but mocked processing)."""
     # Ensure test files exist
     assert TEST_PDF_PATH.exists(), f"Test PDF not found at {TEST_PDF_PATH}"
     assert TEST_IMAGE_PATH.exists(), f"Test image not found at {TEST_IMAGE_PATH}"
 
     # Mock the actual file processing to avoid API calls
-    sample_result = {
-        "file_object": {"pages": [{"page_content": "Mock content from real file"}]}
-    }
+    sample_result = {"file_object": {"pages": [{"page_content": "Mock content from real file"}]}}
 
     async def mock_parse_file(file_path: str) -> Dict[str, Any]:
         return sample_result
@@ -295,9 +281,7 @@ async def test_capture_with_real_files(
 
 
 @pytest.mark.asyncio
-async def test_capture_empty_pages(
-    vision_capture: VisionCapture, monkeypatch: MonkeyPatch
-) -> None:
+async def test_capture_empty_pages(vision_capture: VisionCapture, monkeypatch: MonkeyPatch) -> None:
     """Test capture with document that has no pages."""
     empty_result: Dict[str, Any] = {"file_object": {"pages": []}}
 
@@ -314,9 +298,7 @@ async def test_capture_empty_pages(
 
 
 @pytest.mark.asyncio
-async def test_capture_pages_without_content(
-    vision_capture: VisionCapture, monkeypatch: MonkeyPatch
-) -> None:
+async def test_capture_pages_without_content(vision_capture: VisionCapture, monkeypatch: MonkeyPatch) -> None:
     """Test capture with pages that have no content."""
     result_with_empty_pages = {
         "file_object": {

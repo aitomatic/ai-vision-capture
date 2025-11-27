@@ -15,7 +15,6 @@ Simply set any of these environment variables and the library will
 automatically use the first available provider!
 """
 
-import os
 import time
 
 from aicapture import VisionParser, create_default_vision_model
@@ -53,7 +52,7 @@ def main():
 
     # Print first page content preview
     first_page = result["file_object"]["pages"][0]
-    print(f"\nFirst Page Content (preview):")
+    print("\nFirst Page Content (preview):")
     print(first_page["page_content"][:500] + "...")
 
     # Save results (optional)

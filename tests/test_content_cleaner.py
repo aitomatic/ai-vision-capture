@@ -37,13 +37,8 @@ class TestContentCleaner:
         """
 
         cleaned = self.cleaner.clean_content(content)
-        assert (
-            "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-            not in cleaned
-        )
-        assert (
-            "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" not in cleaned
-        )  # 5 spaces should be removed
+        assert "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" not in cleaned
+        assert "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" not in cleaned  # 5 spaces should be removed
         assert "&nbsp;&nbsp;&nbsp;&nbsp;" in cleaned  # 4 spaces should be kept
         assert "&nbsp;&nbsp;" in cleaned  # Two spaces should be kept
         assert "Normal text here." in cleaned
