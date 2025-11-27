@@ -216,7 +216,7 @@ class TestVisionParserImageProcessing:
         invalid_file = temp_cache_dir / "fake_image.jpg"
         invalid_file.write_text("This is not an image")
 
-        with pytest.raises(Exception):  # PIL.UnidentifiedImageError or other error when trying to open invalid image
+        with pytest.raises(ValueError):
             await vision_parser.process_image_async(str(invalid_file))
 
     @pytest.mark.asyncio
