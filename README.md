@@ -1,263 +1,172 @@
 # AI Vision Capture
 
-A powerful Python library for extracting and analyzing content from PDF, Image, and Video files using Vision Language Models (VLMs). This library provides a flexible and efficient way to process documents with support for multiple VLM providers including OpenAI, Anthropic Claude, Google Gemini, and Azure OpenAI.
+A Python library for extracting and analyzing content from PDF, Image, and Video files using Vision Language Models (VLMs). Supports multiple providers including OpenAI, Anthropic Claude, Google Gemini, and Azure OpenAI.
 
 ## Features
 
-- 🔍 **Multi-Provider Support**: Compatible with major VLM providers (OpenAI, Claude, Gemini, Azure, OpenSource models)
-- 📄 **Document Processing**: Process PDFs and images (JPG, PNG, TIFF, WebP, BMP)
-- 🎥 **Video Processing**: Extract and analyze frames from video files (MP4, AVI, MOV, MKV)
-- 🚀 **Async Processing**: Asynchronous processing with configurable concurrency
-- 💾 **Two-Layer Caching**: Local file system and cloud caching for improved performance
-- 🔄 **Batch Processing**: Process multiple documents in parallel
-- 📝 **Text Extraction**: Enhanced accuracy through combined OCR and VLM processing
-- 🎨 **Image Quality Control**: Configurable image quality settings
-- 📊 **Structured Output**: Well-organized JSON and Markdown output
+- **Multi-Provider Support**: OpenAI, Claude, Gemini, Azure OpenAI, AWS Bedrock
+- **Document Processing**: PDFs and images (JPG, PNG, TIFF, WebP, BMP)
+- **Video Processing**: Frame extraction and analysis from MP4, AVI, MOV, MKV
+- **Audio Transcription**: Whisper-powered speech-to-text with timestamps (LRC format)
+- **Async Processing**: Configurable concurrency for batch operations
+- **Two-Layer Caching**: Local file system + optional S3 cloud cache
+- **Structured Output**: Template-based data extraction to JSON
 
 ## Installation
 
 ```bash
 pip install aicapture
+
+# With video transcription support (adds moviepy for audio extraction)
+pip install aicapture[video]
 ```
 
 ## Environment Setup
 
-1. Set your chosen provider and API key:
+Set your provider API key (auto-detection picks the first available):
+
 ```bash
-# For OpenAI
-export USE_VISION=openai
-export OPENAI_API_KEY=your_openai_key
-
-# For Anthropic
-export USE_VISION=anthropic
-export ANTHROPIC_API_KEY=your_anthropic_key
-
-# For Gemini
-export USE_VISION=gemini
-export GEMINI_API_KEY=your_google_key
+export OPENAI_API_KEY=your_key      # OpenAI
+# or
+export GEMINI_API_KEY=your_key      # Gemini
+# or
+export ANTHROPIC_API_KEY=your_key   # Anthropic
 ```
 
-2. Optional performance settings:
+Optional settings:
+
 ```bash
-export MAX_CONCURRENT_TASKS=5      # Number of concurrent processing tasks
-export VISION_PARSER_DPI=333      # Image DPI for PDF processing
+export USE_VISION=openai            # Force specific provider
+export MAX_CONCURRENT_TASKS=5       # Concurrent API requests
+export VISION_PARSER_DPI=333        # PDF rendering quality
 ```
 
-## Core Capabilities
+## Usage
 
 ### 1. Document Parsing
-
-The VisionParser provides general document processing capabilities for extracting unstructured content from documents.
 
 ```python
 from aicapture import VisionParser
 
-# Initialize parser
 parser = VisionParser()
 
-# Process a single PDF
-result = parser.process_pdf("path/to/your/document.pdf")
+# Process PDF or image
+result = parser.process_pdf("document.pdf")
+result = parser.process_image("photo.jpg")
 
-# Process a single image
-result = parser.process_image("path/to/your/image.jpg")
-
-# Process multiple documents asynchronously
-async def process_folder():
+# Batch processing
+async def batch():
     return await parser.process_folder_async("path/to/folder")
-```
-
-#### Parser Output Format
-
-```json
-{
-  "file_object": {
-    "file_name": "example.pdf",
-    "file_hash": "sha256_hash",
-    "total_pages": 10,
-    "total_words": 5000,
-    "pages": [
-      {
-        "page_number": 1,
-        "page_content": "extracted content",
-        "page_hash": "sha256_hash"
-      }
-    ]
-  }
-}
 ```
 
 ### 2. Structured Data Capture
 
-The VisionCapture component enables extraction of structured data from images using customizable templates.
-
-1. Define your data template:
 ```python
-# Example template for technical alarm logic
-ALARM_TEMPLATE = """
+from aicapture import VisionCapture, OpenAIVisionModel
+
+model = OpenAIVisionModel(model="gpt-4.1", api_key="your_key")
+capture = VisionCapture(vision_model=model)
+
+template = """
 alarm:
-  description: string  # Main alarm description
-  destination: string # Destination system
-  tag: string        # Alarm tag
-  ref_logica: integer # Logic reference number
-
-dependencies:
-  type: array
-  items:
-    - signal_name: string  # Name of the dependency signal
-      source: string      # Source system/component
-      tag: string        # Signal tag
-      ref_logica: integer|null  # Logic reference (can be null)
+  description: string
+  tag: string
+  ref_logica: integer
 """
-```
 
-2. Use with OpenAI Vision:
-```python
-from aicapture import VisionCapture
-from aicapture import OpenAIVisionModel
-
-vision_model = OpenAIVisionModel(
-    model="gpt-4.1",
-    max_tokens=4096,
-    api_key="your_openai_key"
-)
-
-capture = VisionCapture(vision_model=vision_model)
-result = await capture.capture(
-    file_path="path/to/image.png",
-    template=ALARM_TEMPLATE
-)
-```
-
-3. Or use with Anthropic Claude:
-```python
-from aicapture import AnthropicVisionModel
-
-vision_model = AnthropicVisionModel(
-    model="claude-3-sonnet-20240620",
-    max_tokens=4096,
-    api_key="your_anthropic_key"
-)
-
-capture = VisionCapture(vision_model=vision_model)
-result = await capture.capture(
-    file_path="path/to/example.pdf",
-    template=ALARM_TEMPLATE
-)
+result = await capture.capture(file_path="diagram.png", template=template)
 ```
 
 ### 3. Video Processing
 
-The VidCapture component enables extraction of knowledge from video files by extracting frames and analyzing them with VLMs.
+```python
+from aicapture import VidCapture, VideoConfig
+
+config = VideoConfig(
+    frame_rate=2,                # 2 frames per second
+    max_duration_seconds=30,     # Max video length to process
+    target_frame_size=(768, 768),
+)
+
+vid = VidCapture(config=config)
+result = vid.process_video("video.mp4", "Describe what happens in this video.")
+```
+
+### 4. Video Processing with Audio Transcription
+
+Extract speech from video using OpenAI Whisper and include it as context for richer analysis:
 
 ```python
 from aicapture import VidCapture, VideoConfig
 
-# Configure video capture with custom settings
 config = VideoConfig(
-    frame_rate=2,                         # Extract 2 frames per second
-    max_duration_seconds=30,              # Process up to 30 seconds of video
-    target_frame_size=(768, 768),         # Resize frames for optimal processing
-    supported_formats=(".mp4", ".avi", ".mov", ".mkv")
+    frame_rate=2,
+    enable_transcription=True,       # Enable Whisper transcription
+    transcription_model="whisper-1", # OpenAI Whisper model
+    transcription_language="en",     # Optional language hint (None for auto-detect)
 )
 
-# Initialize video capture
-video_capture = VidCapture(config)
-
-# Process a video file with a custom prompt
-result = video_capture.process_video(
-    video_path="path/to/your/video.mp4",
-    prompt="Describe what is happening in this video."
-)
-
-# Or extract frames for custom processing
-frames, interval = video_capture.extract_frames("path/to/your/video.mp4")
-print(f"Extracted {len(frames)} frames at {interval:.2f}s intervals")
-
-# Analyze the extracted frames with a custom prompt
-result = video_capture.capture(
-    prompt="Analyze these video frames and describe key objects and actions.",
-    images=frames
-)
+vid = VidCapture(config=config)
+result = vid.process_video("lecture.mp4", "Summarize the key points discussed.")
 ```
 
-## Advanced Usage
+The transcription is extracted with segment-level timestamps (LRC format) and automatically appended to the VLM prompt:
 
-### Custom Vision Model Configuration
+```
+[00:00.00] Welcome to this tutorial on machine learning.
+[00:05.32] Today we will cover three main topics.
+[00:09.15] First, let's discuss data preprocessing.
+```
+
+You can also use the transcriber directly:
+
+```python
+from aicapture import OpenAIAudioTranscriber
+
+transcriber = OpenAIAudioTranscriber(model="whisper-1")
+transcription = transcriber.transcribe_video("video.mp4")
+
+print(transcription.to_lrc())        # LRC-formatted output
+print(transcription.full_text)       # Plain text
+print(transcription.segments)        # List of TimestampedSegments
+```
+
+## Advanced Configuration
 
 ```python
 from aicapture import VisionParser, GeminiVisionModel
 
-# Configure Gemini vision model with custom settings
-vision_model = GeminiVisionModel(
-    model="gemini-2.5-flash-preview-04-17",
-    api_key="your_gemini_api_key"
-)
+model = GeminiVisionModel(model="gemini-2.5-flash", api_key="your_key")
 
-# Initialize parser with custom configuration
 parser = VisionParser(
-    vision_model=vision_model,
+    vision_model=model,
     dpi=400,
-    prompt="""
-    Please analyze this technical document and extract:
-    1. Equipment specifications and model numbers
-    2. Operating parameters and limits
-    3. Maintenance requirements
-    4. Safety protocols
-    5. Quality control metrics
-    """
+    prompt="Extract equipment specs, operating parameters, and safety protocols.",
 )
 
-# Process PDF with custom settings
-result = parser.process_pdf(
-    pdf_path="path/to/document.pdf",
-)
+result = parser.process_pdf("technical_manual.pdf")
 ```
 
-## Development Setup
+## Development
 
-For local development:
+```bash
+# Setup
+uv sync --all-extras
 
-1. Clone the repository
-2. Install [uv](https://github.com/astral-sh/uv) if you haven't already:
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-3. Copy `.env.template` to `.env` and edit with your settings
-4. Install dependencies:
-   ```bash
-   uv sync --all-extras
-   ```
-5. Run tests and checks:
-   ```bash
-   make test  # Run tests
-   make lint  # Run linters
-   make format  # Format code
-   ```
-
-See `.env.template` for all available configuration options.
-
-## Documentation
-
-For detailed configuration options and examples, see:
-- [Configuration Guide](examples/configuration.md)
-- [Advanced Usage Examples](examples/configuration.md#advanced-configuration-examples)
-
-## Coming Soon
-
-- 🔗 **Cross-Document Knowledge Capture**: Capture structured knowledge across multiple documents
+# Run checks
+make test     # Tests with coverage
+make lint     # Ruff + mypy
+make format   # Auto-format
+make all      # All of the above
+```
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/tiny-but-mighty`)
-3. Commit your changes (`git commit -m 'feat: add small but delightful improvement'`)
-4. Push to the branch (`git push origin feature/tiny-but-mighty`)
-5. Open a Pull Request
-
-For detailed guidelines, see our [Contributing Guide](CONTRIBUTING.md).
+2. Create your feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Push and open a Pull Request
 
 ## License
 
-Copyright 2024 Aitomatic, Inc.
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Copyright 2024 Aitomatic, Inc. Licensed under the Apache License, Version 2.0.
