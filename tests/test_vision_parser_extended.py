@@ -571,5 +571,259 @@ class TestVisionParserConcurrency:
             assert loaded_results[i]["page_content"] == f"Page {i} content"
 
 
+class TestVisionParserPageIndexes:
+    """Test page index filtering for PDF processing."""
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_with_page_indexes(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test processing specific pages by index."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=5)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "page_number": i + 1} for i in range(5)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(
+                    side_effect=lambda img, prompt, **kwargs: "Extracted page content"
+                )
+
+                result = await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[0, 2, 4])
+
+                assert "file_object" in result
+                assert result["file_object"]["total_pages"] == 5
+                assert result["file_object"]["processed_pages"] == 3
+                assert result["file_object"]["page_indexes"] == [0, 2, 4]
+                assert len(result["file_object"]["pages"]) == 3
+
+                # Verify correct page numbers (1-based)
+                page_numbers = [p["page_number"] for p in result["file_object"]["pages"]]
+                assert page_numbers == [1, 3, 5]
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_with_single_page_index(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test processing a single page by index."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=10)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "page_number": i + 1} for i in range(10)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(return_value="Single page content")
+
+                result = await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[3])
+
+                assert len(result["file_object"]["pages"]) == 1
+                assert result["file_object"]["pages"][0]["page_number"] == 4
+                assert result["file_object"]["processed_pages"] == 1
+                assert result["file_object"]["page_indexes"] == [3]
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_with_invalid_page_index(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test that invalid page indexes raise ValueError."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=5)
+        mock_doc.__getitem__ = Mock(return_value=MagicMock())
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with pytest.raises(ValueError, match="Invalid page indexes"):
+                await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[0, 5, 10])
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_with_negative_page_index(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test that negative page indexes raise ValueError."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=5)
+        mock_doc.__getitem__ = Mock(return_value=MagicMock())
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with pytest.raises(ValueError, match="Invalid page indexes"):
+                await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[-1, 0])
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_all_pages_no_extra_metadata(
+        self, vision_parser: VisionParser, test_pdf_path: str
+    ) -> None:
+        """Test that processing all pages does not add page_indexes metadata."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=2)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "page_number": i + 1} for i in range(2)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(return_value="Content")
+
+                # Process all pages (no page_indexes)
+                result = await vision_parser.process_pdf_async(test_pdf_path)
+
+                assert "page_indexes" not in result["file_object"]
+                assert "processed_pages" not in result["file_object"]
+                assert len(result["file_object"]["pages"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_deduplicate_page_indexes(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test that duplicate page indexes are deduplicated."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=5)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "page_number": i + 1} for i in range(5)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(return_value="Content")
+
+                # Pass duplicates - should be deduplicated
+                result = await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[1, 1, 3, 3])
+
+                assert len(result["file_object"]["pages"]) == 2
+                page_numbers = [p["page_number"] for p in result["file_object"]["pages"]]
+                assert page_numbers == [2, 4]
+
+    def test_process_pdf_sync_with_page_indexes(self, vision_parser: VisionParser, test_pdf_path: str) -> None:
+        """Test synchronous PDF processing with page_indexes."""
+        expected_result = {
+            "file_object": {
+                "file_name": "sample.pdf",
+                "total_pages": 5,
+                "processed_pages": 2,
+                "page_indexes": [0, 2],
+                "pages": [
+                    {"page_number": 1, "page_content": "Page 1", "page_hash": "h1"},
+                    {"page_number": 3, "page_content": "Page 3", "page_hash": "h3"},
+                ],
+            }
+        }
+
+        with patch.object(vision_parser, "process_pdf_async", return_value=expected_result):
+            result = vision_parser.process_pdf(test_pdf_path, page_indexes=[0, 2])
+            assert result == expected_result
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_page_indexes_output_structure(
+        self, vision_parser: VisionParser, test_pdf_path: str
+    ) -> None:
+        """Test that output structure matches the standard format with page_indexes."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=3)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "page_number": i + 1} for i in range(3)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(return_value="# Heading\n\nContent here")
+
+                result = await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[0, 2])
+
+                # Verify JSON structure
+                file_obj = result["file_object"]
+                assert "file_name" in file_obj
+                assert "cache_key" in file_obj
+                assert "total_pages" in file_obj
+                assert "total_words" in file_obj
+                assert "file_full_path" in file_obj
+                assert "pages" in file_obj
+
+                # Verify each page has the expected fields
+                for page in file_obj["pages"]:
+                    assert "page_number" in page
+                    assert "page_content" in page
+                    assert "page_hash" in page
+
+    @pytest.mark.asyncio
+    async def test_process_pdf_page_indexes_markdown_output(
+        self, vision_parser: VisionParser, test_pdf_path: str, temp_cache_dir: Path
+    ) -> None:
+        """Test that markdown output is correct when using page_indexes."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = Mock(return_value=5)
+
+        mock_page = MagicMock()
+        mock_page.get_pixmap.return_value.width = 100
+        mock_page.get_pixmap.return_value.height = 100
+        mock_page.get_pixmap.return_value.samples = b"\x00" * (100 * 100 * 3)
+        mock_doc.__getitem__ = Mock(return_value=mock_page)
+
+        with patch("aicapture.vision_parser.fitz.open", return_value=mock_doc):
+            with patch.object(
+                vision_parser,
+                "_extract_text_from_pdf",
+                return_value=[
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "page_number": i + 1} for i in range(5)
+                ],
+            ):
+                vision_parser.vision_model.process_image_async = AsyncMock(
+                    side_effect=lambda img, prompt, **kwargs: "Page content"
+                )
+
+                result = await vision_parser.process_pdf_async(test_pdf_path, page_indexes=[1, 3])
+
+                # Verify markdown output works correctly
+                md_output_dir = str(temp_cache_dir / "md_output")
+                vision_parser.save_markdown_output(result, output_dir=md_output_dir)
+
+                md_file = Path(md_output_dir) / "sample.md"
+                assert md_file.exists()
+
+                content = md_file.read_text()
+                # Should only contain pages 2 and 4 (1-based)
+                assert "Page: 2" in content
+                assert "Page: 4" in content
+                assert "Page: 1" not in content
+                assert "Page: 3" not in content
+                assert "Page: 5" not in content
+
+
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__])

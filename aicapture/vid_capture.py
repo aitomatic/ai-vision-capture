@@ -95,9 +95,7 @@ class VidCapture:
             VideoValidationError: If validation fails
         """
         if not any(video_path.lower().endswith(fmt) for fmt in self.config.supported_formats):
-            raise VideoValidationError(
-                f"Unsupported video format. Supported formats: " f"{self.config.supported_formats}"
-            )
+            raise VideoValidationError(f"Unsupported video format. Supported formats: {self.config.supported_formats}")
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -110,7 +108,7 @@ class VidCapture:
 
         if duration > self.config.max_duration_seconds:
             raise VideoValidationError(
-                f"Video duration ({duration:.1f}s) exceeds maximum allowed " f"({self.config.max_duration_seconds}s)"
+                f"Video duration ({duration:.1f}s) exceeds maximum allowed ({self.config.max_duration_seconds}s)"
             )
 
         cap.release()
