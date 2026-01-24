@@ -765,5 +765,217 @@ class TestChunkedVideoProcessing:
         assert vid_capture._format_time(3661) == "61:01"
 
 
+# ============================================================
+# Transcription serialization tests
+# ============================================================
+
+
+class TestTranscriptionSerialization:
+    """Tests for TimestampedTranscription to_dict/from_dict methods."""
+
+    def test_to_dict(self):
+        """Test serializing transcription to dict."""
+        transcription = TimestampedTranscription(
+            segments=[
+                TranscriptionSegment(start=0.0, end=5.0, text="Hello."),
+                TranscriptionSegment(start=5.0, end=10.0, text="World."),
+            ],
+            language="en",
+            duration=10.0,
+            full_text="Hello. World.",
+        )
+        data = transcription.to_dict()
+        assert data["language"] == "en"
+        assert data["duration"] == 10.0
+        assert data["full_text"] == "Hello. World."
+        assert len(data["segments"]) == 2
+        assert data["segments"][0] == {"start": 0.0, "end": 5.0, "text": "Hello."}
+
+    def test_from_dict(self):
+        """Test deserializing transcription from dict."""
+        data = {
+            "segments": [
+                {"start": 0.0, "end": 5.0, "text": "Hello."},
+                {"start": 5.0, "end": 10.0, "text": "World."},
+            ],
+            "language": "en",
+            "duration": 10.0,
+            "full_text": "Hello. World.",
+        }
+        transcription = TimestampedTranscription.from_dict(data)
+        assert len(transcription.segments) == 2
+        assert transcription.segments[0].start == 0.0
+        assert transcription.segments[0].text == "Hello."
+        assert transcription.language == "en"
+        assert transcription.duration == 10.0
+        assert transcription.full_text == "Hello. World."
+
+    def test_roundtrip_serialization(self):
+        """Test that to_dict/from_dict roundtrip preserves data."""
+        original = TimestampedTranscription(
+            segments=[
+                TranscriptionSegment(start=0.0, end=4.5, text="Step one."),
+                TranscriptionSegment(start=4.5, end=9.0, text="Step two."),
+                TranscriptionSegment(start=65.3, end=70.1, text="Over a minute."),
+            ],
+            language="english",
+            duration=70.1,
+            full_text="Step one. Step two. Over a minute.",
+        )
+        restored = TimestampedTranscription.from_dict(original.to_dict())
+        assert len(restored.segments) == len(original.segments)
+        for orig, rest in zip(original.segments, restored.segments, strict=True):
+            assert orig.start == rest.start
+            assert orig.end == rest.end
+            assert orig.text == rest.text
+        assert restored.language == original.language
+        assert restored.duration == original.duration
+        assert restored.full_text == original.full_text
+
+    def test_from_dict_empty(self):
+        """Test deserializing empty transcription."""
+        data = {"segments": [], "language": "", "duration": 0.0, "full_text": ""}
+        transcription = TimestampedTranscription.from_dict(data)
+        assert len(transcription.segments) == 0
+        assert transcription.to_lrc() == ""
+
+
+# ============================================================
+# Transcription caching tests
+# ============================================================
+
+
+class TestTranscriptionCaching:
+    """Tests for audio transcription caching in VidCapture."""
+
+    def test_transcription_cache_key_generation(self):
+        """Test that transcription cache key is generated correctly."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(enable_transcription=True, transcription_model="whisper-1", transcription_language="en")
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        cache_key = vid_capture._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+        assert cache_key is not None
+        assert "whisper-1" in cache_key
+        assert "_en" in cache_key
+
+    def test_transcription_cache_key_auto_language(self):
+        """Test cache key with auto-detect language (None)."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(enable_transcription=True, transcription_language=None)
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        cache_key = vid_capture._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+        assert cache_key is not None
+        assert "_auto" in cache_key
+
+    def test_transcription_cache_hit(self):
+        """Test that cached transcription is used when available."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(enable_transcription=True)
+        vid_capture = VidCapture(config=config, invalidate_cache=False)
+
+        # Pre-populate cache with transcription
+        cached_data = {
+            "transcription": {
+                "segments": [{"start": 0.0, "end": 5.0, "text": "Cached speech."}],
+                "language": "en",
+                "duration": 5.0,
+                "full_text": "Cached speech.",
+            }
+        }
+        cache_key = vid_capture._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+        vid_capture.transcription_file_cache.set(cache_key, cached_data)
+
+        try:
+            result = vid_capture._get_transcription(str(TEST_VIDEO_PATH))
+
+            assert result is not None
+            assert len(result.segments) == 1
+            assert result.segments[0].text == "Cached speech."
+            assert result.language == "en"
+        finally:
+            # Clean up cache
+            vid_capture.transcription_file_cache.invalidate(cache_key)
+
+    def test_transcription_cache_miss_calls_api(self):
+        """Test that cache miss triggers API call and saves result."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(enable_transcription=True)
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        mock_transcription = TimestampedTranscription(
+            segments=[TranscriptionSegment(start=0.0, end=5.0, text="Fresh from API.")],
+            language="en",
+            duration=5.0,
+            full_text="Fresh from API.",
+        )
+
+        with patch("aicapture.vid_capture.OpenAIAudioTranscriber") as MockTranscriber:
+            mock_instance = MockTranscriber.return_value
+            mock_instance.transcribe_video.return_value = mock_transcription
+
+            result = vid_capture._get_transcription(str(TEST_VIDEO_PATH))
+
+        assert result is not None
+        assert result.segments[0].text == "Fresh from API."
+        mock_instance.transcribe_video.assert_called_once()
+
+    def test_transcription_cache_invalidation(self):
+        """Test that invalidate_cache=True bypasses transcription cache."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(enable_transcription=True)
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        # Pre-populate cache
+        cache_key = vid_capture._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+        vid_capture.transcription_file_cache.set(cache_key, {
+            "transcription": {
+                "segments": [{"start": 0.0, "end": 5.0, "text": "Should be ignored."}],
+                "language": "en",
+                "duration": 5.0,
+                "full_text": "Should be ignored.",
+            }
+        })
+
+        mock_transcription = TimestampedTranscription(
+            segments=[TranscriptionSegment(start=0.0, end=5.0, text="Fresh result.")],
+            language="en",
+            duration=5.0,
+            full_text="Fresh result.",
+        )
+
+        with patch("aicapture.vid_capture.OpenAIAudioTranscriber") as MockTranscriber:
+            mock_instance = MockTranscriber.return_value
+            mock_instance.transcribe_video.return_value = mock_transcription
+
+            result = vid_capture._get_transcription(str(TEST_VIDEO_PATH))
+
+        # Should NOT use cached version
+        assert result is not None
+        assert result.segments[0].text == "Fresh result."
+        mock_instance.transcribe_video.assert_called_once()
+
+        # Clean up
+        vid_capture.transcription_file_cache.invalidate(cache_key)
+
+    def test_transcription_cache_different_models(self):
+        """Test that different models produce different cache keys."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_1 = VidCapture(config=VideoConfig(enable_transcription=True, transcription_model="whisper-1"))
+        vid_2 = VidCapture(config=VideoConfig(enable_transcription=True, transcription_model="whisper-2"))
+
+        key_1 = vid_1._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+        key_2 = vid_2._get_transcription_cache_key(str(TEST_VIDEO_PATH))
+
+        assert key_1 != key_2
+
+
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__])

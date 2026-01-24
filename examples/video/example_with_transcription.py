@@ -92,10 +92,10 @@ def run_transcription_only_example():
 
     try:
         # Create transcriber instance
-        transcriber = OpenAIAudioTranscriber(model="whisper-1", language="en")
+        transcriber = OpenAIAudioTranscriber(model="whisper-1")
 
-        # Transcribe the video
-        transcription = transcriber.transcribe_video(vid_file)
+        # Transcribe the video (language hint passed to transcribe_video)
+        transcription = transcriber.transcribe_video(vid_file, language="en")
 
         print("=" * 80)
         print("TRANSCRIPTION (LRC Format with Timestamps)")

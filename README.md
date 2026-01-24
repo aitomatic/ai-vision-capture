@@ -290,7 +290,7 @@ make publish
 - **Circular Import Handling**: `vid_capture.py` imports directly from `vision_models` to avoid circular dependencies
 - **Cache Invalidation**: Pass `invalidate_cache=True` to constructors to force fresh results (bypasses cache reads)
 - **Image Quality**: Use `ImageQuality.HIGH_RES` for best OCR results, `LOW_RES` for faster processing
-- **Video Duration Limit**: Default max 30 seconds per video (configurable via `VideoConfig.max_duration_seconds`)
+- **Video Duration Limit**: Default max 300 seconds (5 min) per video (configurable via `VideoConfig.max_duration_seconds`)
 - **Supported Image Formats**: JPG, JPEG, PNG, TIFF, WebP, BMP
 
 ### Release Process

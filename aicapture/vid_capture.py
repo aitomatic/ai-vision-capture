@@ -465,6 +465,51 @@ class VidCapture:
             logger.warning(f"Audio transcription failed, proceeding without it: {e}")
             return None
 
+    async def _get_transcription_async(self, video_path: str) -> Optional[TimestampedTranscription]:
+        """
+        Async version of _get_transcription.
+
+        Uses async cache methods to avoid asyncio.run() conflicts
+        when called from an already-running event loop.
+
+        Args:
+            video_path: Path to the video file
+
+        Returns:
+            TimestampedTranscription or None if transcription fails or is disabled.
+        """
+        if not self.config.enable_transcription:
+            return None
+
+        # Try to load from cache first (async)
+        cache_key = self._get_transcription_cache_key(video_path)
+        if cache_key:
+            cached_transcription = await self._load_transcription_from_cache_async(cache_key)
+            if cached_transcription:
+                return cached_transcription
+
+        # Cache miss - call Whisper API
+        try:
+            logger.info(f"Transcription cache miss, calling Whisper API for {video_path}")
+            transcriber = OpenAIAudioTranscriber(model=self.config.transcription_model)
+            transcription = transcriber.transcribe_video(
+                video_path,
+                language=self.config.transcription_language,
+            )
+            logger.info(
+                f"Transcription complete: {len(transcription.segments)} segments, "
+                f"duration={transcription.duration:.1f}s"
+            )
+
+            # Save to cache for future use (async)
+            if cache_key:
+                await self._save_transcription_to_cache_async(cache_key, transcription)
+
+            return transcription
+        except Exception as e:
+            logger.warning(f"Audio transcription failed, proceeding without it: {e}")
+            return None
+
     def _enrich_prompt_with_transcription(self, prompt: str, transcription: Optional[TimestampedTranscription]) -> str:
         """
         Enrich the prompt with transcription context if available.
@@ -721,7 +766,7 @@ class VidCapture:
 
         logger.info(f"Processing video in {num_chunks} chunks ({chunk_duration}s each, {self.config.frame_rate} fps)")
 
-        transcription = self._get_transcription(video_path)
+        transcription = await self._get_transcription_async(video_path)
 
         chunk_results: List[str] = []
         for chunk_idx in range(num_chunks):
@@ -867,7 +912,7 @@ class VidCapture:
             if not frames:
                 raise ValueError(f"No frames could be extracted from {video_path}")
 
-            transcription = self._get_transcription(video_path)
+            transcription = await self._get_transcription_async(video_path)
             chunk_transcription = self._get_segments_for_range(transcription, 0, total_duration)
             enriched_prompt = self._build_chunk_prompt(
                 user_prompt=prompt,
