@@ -42,6 +42,10 @@ dev = [
     "mypy>=1.8.0",  # Static type checker
     "pre-commit>=3.6.0",  # Git hooks manager
 ]
+# Video transcription support (audio extraction + Whisper)
+video = [
+    "moviepy>=2.0.0",  # Audio extraction from video files
+]
 # Optional cloud provider integrations
 aws = ["boto3>=1.34.0"]  # Optional AWS integration
 google = ["google-cloud-vision"]  # Optional Google Cloud Vision integration

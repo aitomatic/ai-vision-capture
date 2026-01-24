@@ -12,8 +12,10 @@ from typing import Any, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from loguru import logger
 from PIL import Image
 
+from aicapture.audio_transcriber import OpenAIAudioTranscriber, TimestampedTranscription
 from aicapture.cache import FileCache, HashUtils, S3Cache, TwoLayerCache
 
 # Fix circular import by importing directly from vision_models
@@ -31,6 +33,10 @@ class VideoConfig:
     resize_frames: bool = True
     cache_dir: Optional[str] = None  # Directory for caching results
     cloud_bucket: Optional[str] = None  # S3 bucket for cloud caching
+    # Transcription settings
+    enable_transcription: bool = False  # Enable Whisper audio transcription
+    transcription_model: str = "whisper-1"  # Whisper model name
+    transcription_language: Optional[str] = None  # Language hint (ISO 639-1), None for auto-detect
 
 
 class VideoValidationError(Exception):
@@ -248,8 +254,13 @@ class VidCapture:
             # Create prompt hash
             prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
+            # Include transcription config in cache key
+            transcription_suffix = ""
+            if self.config.enable_transcription:
+                transcription_suffix = f"_transcribe_{self.config.transcription_model}"
+
             # Create cache key with frame rate
-            return f"{file_hash}_{prompt_hash}_{self.config.frame_rate}"
+            return f"{file_hash}_{prompt_hash}_{self.config.frame_rate}{transcription_suffix}"
         except Exception as e:
             print(f"Failed to generate cache key: {str(e)}")
             return None
@@ -313,6 +324,54 @@ class VidCapture:
         """
         asyncio.run(self._save_to_cache_async(cache_key, result))
 
+    def _get_transcription(self, video_path: str) -> Optional[TimestampedTranscription]:
+        """
+        Get audio transcription for a video file.
+
+        Args:
+            video_path: Path to the video file
+
+        Returns:
+            TimestampedTranscription or None if transcription fails or is disabled.
+        """
+        if not self.config.enable_transcription:
+            return None
+
+        try:
+            transcriber = OpenAIAudioTranscriber(model=self.config.transcription_model)
+            transcription = transcriber.transcribe_video(
+                video_path,
+                language=self.config.transcription_language,
+            )
+            logger.info(
+                f"Transcription complete: {len(transcription.segments)} segments, "
+                f"duration={transcription.duration:.1f}s"
+            )
+            return transcription
+        except Exception as e:
+            logger.warning(f"Audio transcription failed, proceeding without it: {e}")
+            return None
+
+    def _enrich_prompt_with_transcription(self, prompt: str, transcription: Optional[TimestampedTranscription]) -> str:
+        """
+        Enrich the prompt with transcription context if available.
+
+        Args:
+            prompt: Original user prompt
+            transcription: Timestamped transcription or None
+
+        Returns:
+            Enriched prompt with transcription context appended, or original prompt.
+        """
+        if transcription is None:
+            return prompt
+
+        context = transcription.to_prompt_context()
+        if not context:
+            return prompt
+
+        return f"{prompt}\n{context}\nPlease use both the visual frames and the audio transcription above to analyze this video."
+
     def process_video(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
         Extract frames from a video and analyze them with a vision model.
@@ -338,7 +397,11 @@ class VidCapture:
         if not frames:
             raise ValueError(f"No frames could be extracted from {video_path}")
 
-        result = self.capture(prompt, frames, **kwargs)
+        # Get transcription if enabled
+        transcription = self._get_transcription(video_path)
+        enriched_prompt = self._enrich_prompt_with_transcription(prompt, transcription)
+
+        result = self.capture(enriched_prompt, frames, **kwargs)
 
         # Store in cache
         self._save_to_cache(cache_key, result)  # type: ignore
@@ -371,7 +434,11 @@ class VidCapture:
         if not frames:
             raise ValueError(f"No frames could be extracted from {video_path}")
 
-        result = await self.capture_async(prompt, frames, **kwargs)
+        # Get transcription if enabled
+        transcription = self._get_transcription(video_path)
+        enriched_prompt = self._enrich_prompt_with_transcription(prompt, transcription)
+
+        result = await self.capture_async(enriched_prompt, frames, **kwargs)
 
         # Store in cache
         await self._save_to_cache_async(cache_key, result)  # type: ignore

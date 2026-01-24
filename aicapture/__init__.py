@@ -3,6 +3,13 @@ Vision Capture - A powerful Python library for extracting and analyzing content
 using Vision Language Models.
 """
 
+from aicapture.audio_transcriber import (
+    AudioTranscriber,
+    AzureOpenAIAudioTranscriber,
+    OpenAIAudioTranscriber,
+    TimestampedTranscription,
+    TranscriptionSegment,
+)
 from aicapture.cache import FileCache, ImageCache, TwoLayerCache
 from aicapture.settings import ImageQuality
 from aicapture.vid_capture import VidCapture, VideoConfig, VideoValidationError
@@ -42,6 +49,12 @@ __all__ = [
     "VidCapture",
     "VideoConfig",
     "VideoValidationError",
+    # Audio transcription
+    "AudioTranscriber",
+    "OpenAIAudioTranscriber",
+    "AzureOpenAIAudioTranscriber",
+    "TimestampedTranscription",
+    "TranscriptionSegment",
     "create_default_vision_model",
     "is_vision_model_installed",
 ]
