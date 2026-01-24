@@ -450,7 +450,95 @@ class VisionParser:
 
         return all_pages, total_words
 
-    async def process_pdf_async(self, pdf_path: str) -> Dict:
+    async def _process_pdf_chunk_by_indexes(
+        self,
+        doc: fitz.Document,
+        page_indexes: List[int],
+        page_extractions: List[Dict],
+        partial_results: Dict[int, Dict],
+        cache_key: str,
+        all_pages: List[Dict],
+        file_hash: str,
+    ) -> tuple[List[Dict], int]:
+        """
+        Process a specific set of pages (by index) from a PDF document.
+
+        Args:
+            doc: The open PDF document
+            page_indexes: List of 0-based page indexes to process
+            page_extractions: Text and hash extracted from PDF pages
+            partial_results: Previously processed pages
+            cache_key: Cache key for the PDF file
+            all_pages: Current list of processed pages
+            file_hash: Hash of the PDF file
+
+        Returns:
+            Tuple of (updated all_pages list, total words in this chunk)
+        """
+        logger.info(f"Processing pages (0-based): {page_indexes}")
+
+        total_words = 0
+        tasks = []
+        page_images = []
+
+        try:
+            for page_idx in page_indexes:
+                page_number = page_idx + 1
+
+                # Skip if page is already in partial results
+                if page_number in partial_results:
+                    logger.info(f"Page {page_number} already in partial results, skipping")
+                    continue
+
+                # Get page info with text and hash
+                page_info = page_extractions[page_idx]
+                page_hash = page_info["hash"]
+                text_content = page_info["text"]
+
+                # Get the page image from cache or generate it
+                img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
+                page_images.append(img)
+
+                # Create task to process the page
+                task = asyncio.create_task(self.process_page_async(img, page_number, page_hash, text_content))
+                tasks.append(task)
+
+            # Process all tasks concurrently
+            if tasks:
+                start_time = time.time()
+                batch_results = await asyncio.gather(*tasks)
+                duration = time.time() - start_time
+
+                # Calculate words in batch
+                batch_words = sum(len(page["page_content"].split()) for page in batch_results)
+                logger.info(f"Completed batch in {duration:.2f} seconds")
+
+                # Add batch results to all pages
+                all_pages.extend(batch_results)
+                total_words += batch_words
+
+                # Save partial results after each batch
+                await self._save_partial_results(cache_key, all_pages)
+
+        finally:
+            # Clean up page images to free memory
+            for img in page_images:
+                try:
+                    img.close()
+                except Exception:
+                    pass
+
+        # Add already processed pages from partial results for this chunk
+        for page_idx in page_indexes:
+            page_number = page_idx + 1
+            if page_number in partial_results and not any(p["page_number"] == page_number for p in all_pages):
+                logger.info(f"Adding cached result for page {page_number}")
+                all_pages.append(partial_results[page_number])
+                total_words += len(partial_results[page_number]["page_content"].split())
+
+        return all_pages, total_words
+
+    async def process_pdf_async(self, pdf_path: str, page_indexes: Optional[List[int]] = None) -> Dict:
         """
         Process a PDF file asynchronously and return structured content.
 
@@ -459,6 +547,9 @@ class VisionParser:
 
         Args:
             pdf_path: Path to the PDF file to process
+            page_indexes: Optional list of 0-based page indexes to process.
+                If None, all pages are processed. For example, [0, 2, 4]
+                will process only the 1st, 3rd, and 5th pages.
 
         Returns:
             A dictionary containing the structured content of the PDF
@@ -466,6 +557,7 @@ class VisionParser:
         Raises:
             FileNotFoundError: If the PDF file doesn't exist
             PDFValidationError: If the file is not a valid PDF
+            ValueError: If page_indexes contains invalid indexes
             Exception: For other processing errors
         """
         pdf_file: Optional[Path] = None
@@ -481,15 +573,25 @@ class VisionParser:
             doc = fitz.open(str(pdf_file))
             total_pages = len(doc)
 
-            # Check if image cache is available for this file hash
-            # If not, try to download it from cloud storage
-            # logger.info(f"Checking image cache for file hash: {file_hash}")
+            # Validate and normalize page_indexes
+            if page_indexes is not None:
+                # Validate page indexes
+                invalid_indexes = [i for i in page_indexes if i < 0 or i >= total_pages]
+                if invalid_indexes:
+                    raise ValueError(
+                        f"Invalid page indexes: {invalid_indexes}. "
+                        f"PDF has {total_pages} pages (valid range: 0 to {total_pages - 1})."
+                    )
+                # Deduplicate and sort
+                selected_pages = sorted(set(page_indexes))
+                logger.info(f"Processing selected pages (0-based): {selected_pages}")
+            else:
+                selected_pages = list(range(total_pages))
 
-            # Try to download image cache if not already available locally
-            # skip for now to save time and disk space
-            # await self._image_cache.download_images_to_local_cache(
-            #     file_hash, total_pages
-            # )
+            # Include page_indexes in cache key when filtering pages
+            if page_indexes is not None:
+                pages_suffix = "_pages_" + "_".join(str(i) for i in selected_pages)
+                cache_key = cache_key + pages_suffix
 
             # Check cache unless invalidate_cache is True
             cached_result = await self.cache.get(cache_key)
@@ -515,16 +617,17 @@ class VisionParser:
 
             # Process PDF in chunks equal to MAX_CONCURRENT_TASKS
             try:
-                logger.info(f"PDF has {total_pages} pages")
+                pages_to_process = len(selected_pages)
+                logger.info(f"PDF has {total_pages} pages, processing {pages_to_process} pages")
 
-                # Process PDF in chunks equal to MAX_CONCURRENT_TASKS
-                for chunk_start in range(0, total_pages, chunk_size):
-                    chunk_end = min(chunk_start + chunk_size, total_pages)
+                # Process selected pages in chunks
+                for chunk_start_idx in range(0, pages_to_process, chunk_size):
+                    chunk_end_idx = min(chunk_start_idx + chunk_size, pages_to_process)
+                    chunk_page_indexes = selected_pages[chunk_start_idx:chunk_end_idx]
 
-                    all_pages, chunk_words = await self._process_pdf_chunk(
+                    all_pages, chunk_words = await self._process_pdf_chunk_by_indexes(
                         doc,
-                        chunk_start,
-                        chunk_end,
+                        chunk_page_indexes,
                         page_extractions,
                         partial_results,
                         cache_key,
@@ -538,7 +641,9 @@ class VisionParser:
                     doc.close()
 
             # Compile final results
-            result = await self._compile_results(pdf_file, cache_key, all_pages, total_words, total_pages)
+            result = await self._compile_results(
+                pdf_file, cache_key, all_pages, total_words, total_pages, selected_pages
+            )
 
             # Cache the results
             logger.info("Saving results to cache")
@@ -563,12 +668,14 @@ class VisionParser:
             logger.error(f"Error processing PDF {pdf_path}: {str(e)}")
             raise
 
-    def process_pdf(self, pdf_path: str) -> Dict:
+    def process_pdf(self, pdf_path: str, page_indexes: Optional[List[int]] = None) -> Dict:
         """
         Synchronous wrapper for process_pdf_async.
 
         Args:
             pdf_path (str): Path to the PDF file
+            page_indexes: Optional list of 0-based page indexes to process.
+                If None, all pages are processed.
 
         Returns:
             dict: Structured content following the specified schema
@@ -576,7 +683,7 @@ class VisionParser:
 
         async def _run() -> Dict:
             try:
-                return await self.process_pdf_async(pdf_path)
+                return await self.process_pdf_async(pdf_path, page_indexes=page_indexes)
             except Exception as e:
                 logger.error(f"Error processing PDF: {e}")
                 return {}
@@ -736,14 +843,26 @@ class VisionParser:
 
         return asyncio.run(_run())
 
-    def process_file(self, file_path: str) -> Dict:
-        """Process a file synchronously and return structured content."""
-        return asyncio.run(self.process_file_async(file_path))
+    def process_file(self, file_path: str, page_indexes: Optional[List[int]] = None) -> Dict:
+        """Process a file synchronously and return structured content.
 
-    async def process_file_async(self, file_path: str) -> Dict:
-        """Process a file asynchronously and return structured content."""
+        Args:
+            file_path: Path to the file to process
+            page_indexes: Optional list of 0-based page indexes to process (PDF only).
+                If None, all pages are processed.
+        """
+        return asyncio.run(self.process_file_async(file_path, page_indexes=page_indexes))
+
+    async def process_file_async(self, file_path: str, page_indexes: Optional[List[int]] = None) -> Dict:
+        """Process a file asynchronously and return structured content.
+
+        Args:
+            file_path: Path to the file to process
+            page_indexes: Optional list of 0-based page indexes to process (PDF only).
+                If None, all pages are processed. Ignored for image files.
+        """
         if file_path.lower().endswith(".pdf"):
-            return await self.process_pdf_async(file_path)
+            return await self.process_pdf_async(file_path, page_indexes=page_indexes)
         elif Path(file_path).suffix.lower().lstrip(".") in self.SUPPORTED_IMAGE_FORMATS:
             return await self.process_image_async(file_path)
         else:
@@ -800,8 +919,19 @@ class VisionParser:
         pages: List[Dict],
         total_words: int,
         total_pages: int,
+        selected_pages: Optional[List[int]] = None,
     ) -> Dict:
-        """Compile final results and clean up temporary files."""
+        """Compile final results and clean up temporary files.
+
+        Args:
+            pdf_file: Path to the PDF file
+            cache_key: Cache key for the results
+            pages: List of processed page results
+            total_words: Total word count across all processed pages
+            total_pages: Total number of pages in the PDF document
+            selected_pages: Optional list of 0-based page indexes that were processed.
+                If None, all pages were processed.
+        """
         # Sort pages by page number (as integer) to ensure correct order
         pages.sort(key=lambda x: int(x["page_number"]))
 
@@ -811,7 +941,7 @@ class VisionParser:
             partial_cache.unlink()
 
         # Prepare final output
-        return {
+        result: Dict[str, Any] = {
             "file_object": {
                 "file_name": pdf_file.name,
                 "cache_key": cache_key,
@@ -821,6 +951,13 @@ class VisionParser:
                 "pages": pages,
             }
         }
+
+        # Include page selection metadata when not all pages were processed
+        if selected_pages is not None and len(selected_pages) < total_pages:
+            result["file_object"]["processed_pages"] = len(selected_pages)
+            result["file_object"]["page_indexes"] = selected_pages
+
+        return result
 
     @classmethod
     async def analyze_pdf_file(cls, pdf_path: str) -> Dict[str, Any]:

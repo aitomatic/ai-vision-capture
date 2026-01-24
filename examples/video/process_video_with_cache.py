@@ -59,7 +59,7 @@ async def main():
     print(f"Second run took {elapsed2:.2f} seconds")
     print(f"Result: {result2[:100]}...")  # Show first 100 chars
 
-    print(f"\nCache speedup: {elapsed1/elapsed2:.1f}x faster")
+    print(f"\nCache speedup: {elapsed1 / elapsed2:.1f}x faster")
 
     # Different prompt - should miss cache
     print("\n=== Third Run (Different Prompt) ===")
