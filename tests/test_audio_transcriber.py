@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from aicapture.audio_transcriber import (
     AzureOpenAIAudioTranscriber,
@@ -474,7 +475,10 @@ class TestVidCaptureTranscriptionIntegration:
 
         # Prompt should NOT contain transcription context
         assert "Video Audio Transcription" not in captured_prompt["value"]
-        assert captured_prompt["value"] == "Describe this video"
+        # Should contain the user prompt and chunk metadata
+        assert "Describe this video" in captured_prompt["value"]
+        assert "Video Analysis: Chunk 1/1" in captured_prompt["value"]
+        assert "fps" in captured_prompt["value"]
 
     @pytest.mark.asyncio
     async def test_process_video_async_with_transcription(self, monkeypatch):
@@ -545,6 +549,220 @@ class TestVidCaptureTranscriptionIntegration:
 
         # Cache keys should be different
         assert key_no != key_yes
+
+
+# ============================================================
+# Chunked video processing tests
+# ============================================================
+
+
+class TestChunkedVideoProcessing:
+    """Tests for chunked video processing with metadata-rich prompts."""
+
+    def test_video_config_chunk_defaults(self):
+        """Test default chunking configuration."""
+        from aicapture.vid_capture import VideoConfig
+
+        config = VideoConfig()
+        assert config.frame_rate == 0.5
+        assert config.chunk_duration_seconds == 60
+        assert config.max_duration_seconds == 300
+
+    def test_video_config_custom_fps(self):
+        """Test configurable fps options."""
+        from aicapture.vid_capture import VideoConfig
+
+        for fps in [0.3, 0.5, 1.0]:
+            config = VideoConfig(frame_rate=fps)
+            assert config.frame_rate == fps
+
+    def test_build_chunk_prompt_metadata(self, monkeypatch):
+        """Test that chunk prompt includes all required metadata."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(frame_rate=0.5)
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        prompt = vid_capture._build_chunk_prompt(
+            user_prompt="Describe the scene",
+            chunk_idx=1,
+            total_chunks=5,
+            start_sec=60.0,
+            end_sec=120.0,
+            total_duration=300.0,
+            num_frames=30,
+            chunk_transcription=None,
+        )
+
+        # Should contain chunk position
+        assert "Chunk 2/5" in prompt
+        # Should contain time range
+        assert "01:00" in prompt
+        assert "02:00" in prompt
+        # Should contain total duration
+        assert "05:00" in prompt
+        # Should contain fps info
+        assert "0.5 fps" in prompt
+        assert "1 frame every 2.0 seconds" in prompt
+        # Should contain frame count
+        assert "30 frames" in prompt
+        # Should contain user prompt
+        assert "Describe the scene" in prompt
+        # Multi-chunk should have the focus note
+        assert "chunk 2 of 5" in prompt
+        assert "01:00 - 02:00" in prompt
+
+    def test_build_chunk_prompt_single_chunk(self):
+        """Test that single-chunk prompt doesn't have the multi-chunk note."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_capture = VidCapture(config=VideoConfig(frame_rate=1.0), invalidate_cache=True)
+
+        prompt = vid_capture._build_chunk_prompt(
+            user_prompt="What is this?",
+            chunk_idx=0,
+            total_chunks=1,
+            start_sec=0,
+            end_sec=20.0,
+            total_duration=20.0,
+            num_frames=20,
+            chunk_transcription=None,
+        )
+
+        assert "Chunk 1/1" in prompt
+        assert "This is chunk" not in prompt
+        assert "What is this?" in prompt
+
+    def test_build_chunk_prompt_with_transcript(self):
+        """Test that chunk prompt includes matching transcript."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_capture = VidCapture(config=VideoConfig(), invalidate_cache=True)
+
+        chunk_transcript = TimestampedTranscription(
+            segments=[
+                TranscriptionSegment(start=60.0, end=65.0, text="This is the second minute."),
+                TranscriptionSegment(start=65.0, end=70.0, text="We are halfway through."),
+            ],
+            language="en",
+            duration=60.0,
+            full_text="This is the second minute. We are halfway through.",
+        )
+
+        prompt = vid_capture._build_chunk_prompt(
+            user_prompt="Summarize",
+            chunk_idx=1,
+            total_chunks=3,
+            start_sec=60.0,
+            end_sec=120.0,
+            total_duration=180.0,
+            num_frames=30,
+            chunk_transcription=chunk_transcript,
+        )
+
+        assert "Video Audio Transcription" in prompt
+        assert "This is the second minute" in prompt
+        assert "We are halfway through" in prompt
+        assert "[01:00.00]" in prompt
+
+    def test_get_segments_for_range(self):
+        """Test filtering transcription segments by time range."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_capture = VidCapture(config=VideoConfig(), invalidate_cache=True)
+
+        full_transcription = TimestampedTranscription(
+            segments=[
+                TranscriptionSegment(start=0.0, end=10.0, text="First part."),
+                TranscriptionSegment(start=10.0, end=25.0, text="Second part."),
+                TranscriptionSegment(start=55.0, end=70.0, text="Spans boundary."),
+                TranscriptionSegment(start=70.0, end=80.0, text="Third part."),
+                TranscriptionSegment(start=120.0, end=130.0, text="Fourth part."),
+            ],
+            language="en",
+            duration=130.0,
+            full_text="",
+        )
+
+        # Get segments for 60-120 range
+        filtered = vid_capture._get_segments_for_range(full_transcription, 60.0, 120.0)
+
+        assert filtered is not None
+        assert len(filtered.segments) == 2
+        # "Spans boundary" starts at 55 and ends at 70 (overlaps with 60-120)
+        assert filtered.segments[0].text == "Spans boundary."
+        # "Third part" is fully within range
+        assert filtered.segments[1].text == "Third part."
+
+    def test_get_segments_for_range_none(self):
+        """Test that None transcription returns None."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_capture = VidCapture(config=VideoConfig(), invalidate_cache=True)
+        assert vid_capture._get_segments_for_range(None, 0, 60) is None
+
+    def test_extract_frames_for_range(self):
+        """Test extracting frames from a specific time range."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        config = VideoConfig(frame_rate=1.0)
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        # Extract frames from 5-10 seconds of the 20s test video
+        frames = vid_capture._extract_frames_for_range(str(TEST_VIDEO_PATH), 5.0, 10.0)
+
+        # At 1 fps, 5 seconds should yield ~5 frames
+        assert len(frames) == 5
+        assert all(isinstance(f, Image.Image) for f in frames)
+
+    def test_chunked_processing_multi_chunk(self, monkeypatch):
+        """Test that longer videos trigger chunked processing with synthesis."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        # Use chunk_duration=10 so the 20s test video gets 2 chunks
+        config = VideoConfig(
+            frame_rate=0.5,
+            chunk_duration_seconds=10,
+            enable_transcription=False,
+        )
+        vid_capture = VidCapture(config=config, invalidate_cache=True)
+
+        captured_prompts: list = []
+
+        def mock_capture(prompt: str, images: Any, **kwargs: Any) -> str:
+            captured_prompts.append(prompt)
+            if "Chunk 1/" in prompt or "Chunk 2/" in prompt or "Chunk 3/" in prompt:
+                return "Analysis of chunk"
+            # Synthesis call
+            return "Final synthesized result"
+
+        monkeypatch.setattr(vid_capture, "capture", mock_capture)
+
+        vid_capture.process_video(str(TEST_VIDEO_PATH), "Describe the video")
+
+        # Should have chunk prompts + synthesis prompt
+        assert len(captured_prompts) >= 3  # at least 2 chunks + 1 synthesis
+        # First chunk prompt
+        assert "Chunk 1/" in captured_prompts[0]
+        assert "00:00" in captured_prompts[0]
+        assert "0.5 fps" in captured_prompts[0]
+        # Second chunk prompt
+        assert "Chunk 2/" in captured_prompts[1]
+        assert "00:10" in captured_prompts[1]
+        # Synthesis prompt
+        assert "comprehensive and unified" in captured_prompts[-1]
+        assert "Describe the video" in captured_prompts[-1]
+
+    def test_format_time(self):
+        """Test time formatting helper."""
+        from aicapture.vid_capture import VidCapture, VideoConfig
+
+        vid_capture = VidCapture(config=VideoConfig(), invalidate_cache=True)
+
+        assert vid_capture._format_time(0) == "00:00"
+        assert vid_capture._format_time(65) == "01:05"
+        assert vid_capture._format_time(300) == "05:00"
+        assert vid_capture._format_time(3661) == "61:01"
 
 
 if __name__ == "__main__":

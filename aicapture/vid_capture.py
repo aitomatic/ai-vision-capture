@@ -26,8 +26,9 @@ from aicapture.vision_models import VisionModel, create_default_vision_model
 class VideoConfig:
     """Configuration for video processing."""
 
-    max_duration_seconds: int = 30
-    frame_rate: int = 2  # Frames per second to extract
+    max_duration_seconds: int = 300  # Max video duration (5 minutes)
+    frame_rate: float = 0.5  # Frames per second to extract (options: 0.3, 0.5, 1.0)
+    chunk_duration_seconds: int = 60  # Duration of each processing chunk in seconds
     supported_formats: tuple = (".mp4", ".avi", ".mov", ".mkv")
     target_frame_size: tuple = (768, 768)  # Target size for resized frames
     resize_frames: bool = True
@@ -372,9 +373,308 @@ class VidCapture:
 
         return f"{prompt}\n{context}\nPlease use both the visual frames and the audio transcription above to analyze this video."
 
+    def _get_video_duration(self, video_path: str) -> float:
+        """Get video duration in seconds."""
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.release()
+        return frame_count / fps if fps > 0 else 0.0
+
+    def _extract_frames_for_range(self, video_path: str, start_sec: float, end_sec: float) -> List[Image.Image]:
+        """
+        Extract frames from a specific time range of a video.
+
+        Args:
+            video_path: Path to the video file
+            start_sec: Start time in seconds
+            end_sec: End time in seconds
+
+        Returns:
+            List of PIL Images extracted from the range
+        """
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frames = []
+
+        range_duration = end_sec - start_sec
+        num_frames = int(range_duration * self.config.frame_rate)
+        frame_interval = 1.0 / self.config.frame_rate if self.config.frame_rate > 0 else range_duration
+
+        for i in range(num_frames):
+            timestamp = start_sec + i * frame_interval
+            if timestamp >= end_sec:
+                break
+            frame_position = int(timestamp * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_position)
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames.append(self._optimize_frame(frame))
+
+        cap.release()
+        return frames
+
+    def _get_segments_for_range(
+        self, transcription: Optional[TimestampedTranscription], start_sec: float, end_sec: float
+    ) -> Optional[TimestampedTranscription]:
+        """
+        Get transcription segments that fall within a time range.
+
+        Args:
+            transcription: Full transcription
+            start_sec: Range start in seconds
+            end_sec: Range end in seconds
+
+        Returns:
+            Filtered TimestampedTranscription or None
+        """
+        if transcription is None or not transcription.segments:
+            return None
+
+        from aicapture.audio_transcriber import TranscriptionSegment
+
+        filtered = [
+            TranscriptionSegment(start=seg.start, end=seg.end, text=seg.text)
+            for seg in transcription.segments
+            if seg.start < end_sec and seg.end > start_sec
+        ]
+        if not filtered:
+            return None
+
+        return TimestampedTranscription(
+            segments=filtered,
+            language=transcription.language,
+            duration=end_sec - start_sec,
+            full_text=" ".join(seg.text for seg in filtered),
+        )
+
+    def _format_time(self, seconds: float) -> str:
+        """Format seconds as MM:SS."""
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{m:02d}:{s:02d}"
+
+    def _build_chunk_prompt(
+        self,
+        user_prompt: str,
+        chunk_idx: int,
+        total_chunks: int,
+        start_sec: float,
+        end_sec: float,
+        total_duration: float,
+        num_frames: int,
+        chunk_transcription: Optional[TimestampedTranscription],
+    ) -> str:
+        """
+        Build a metadata-rich prompt for a video chunk.
+
+        Includes chunk position, fps, time range, and matching transcript.
+        """
+        start_fmt = self._format_time(start_sec)
+        end_fmt = self._format_time(end_sec)
+        total_fmt = self._format_time(total_duration)
+
+        header = (
+            f"--- Video Analysis: Chunk {chunk_idx + 1}/{total_chunks} ---\n"
+            f"Time range: {start_fmt} to {end_fmt} (total video duration: {total_fmt})\n"
+            f"Frames: {num_frames} frames captured at {self.config.frame_rate} fps "
+            f"(1 frame every {1.0 / self.config.frame_rate:.1f} seconds)\n"
+        )
+
+        # Add transcript for this chunk
+        transcript_section = ""
+        if chunk_transcription and chunk_transcription.segments:
+            transcript_section = chunk_transcription.to_prompt_context()
+
+        prompt = f"{header}{transcript_section}\n{user_prompt}"
+
+        if total_chunks > 1:
+            prompt += (
+                f"\n\nNote: This is chunk {chunk_idx + 1} of {total_chunks}. "
+                f"Focus on analyzing the content within this time range ({start_fmt} - {end_fmt})."
+            )
+
+        return prompt
+
+    def _synthesize_results(self, chunk_results: List[str], user_prompt: str, total_duration: float) -> str:
+        """
+        Combine chunk analysis results into a final synthesis.
+
+        Args:
+            chunk_results: List of analysis results from each chunk
+            user_prompt: Original user prompt
+            total_duration: Total video duration
+
+        Returns:
+            Synthesized final result
+        """
+        if len(chunk_results) == 1:
+            return chunk_results[0]
+
+        total_fmt = self._format_time(total_duration)
+
+        synthesis_prompt = (
+            f"The following are analysis results from {len(chunk_results)} consecutive chunks "
+            f"of a video (total duration: {total_fmt}), processed at {self.config.frame_rate} fps.\n\n"
+        )
+
+        for i, result in enumerate(chunk_results):
+            chunk_start = i * self.config.chunk_duration_seconds
+            chunk_end = min((i + 1) * self.config.chunk_duration_seconds, total_duration)
+            start_fmt = self._format_time(chunk_start)
+            end_fmt = self._format_time(chunk_end)
+            synthesis_prompt += f"--- Chunk {i + 1}/{len(chunk_results)} [{start_fmt} - {end_fmt}] ---\n{result}\n\n"
+
+        synthesis_prompt += (
+            f"Based on all the chunk analyses above, provide a comprehensive and unified response to:\n{user_prompt}"
+        )
+
+        # Use the vision model for synthesis (text-only, no images)
+        # Send a single blank image since VLMs require at least one image
+        placeholder = Image.new("RGB", (1, 1), color=(0, 0, 0))
+        return self.capture(synthesis_prompt, [placeholder])
+
+    def _process_video_chunked(self, video_path: str, prompt: str, total_duration: float, **kwargs: Any) -> str:
+        """
+        Process a video in chunks, then synthesize results.
+
+        Args:
+            video_path: Path to the video file
+            prompt: User prompt
+            total_duration: Total video duration in seconds
+
+        Returns:
+            Synthesized result from all chunks
+        """
+        # Calculate chunks
+        chunk_duration = self.config.chunk_duration_seconds
+        num_chunks = max(1, int((total_duration + chunk_duration - 1) // chunk_duration))
+
+        logger.info(f"Processing video in {num_chunks} chunks ({chunk_duration}s each, {self.config.frame_rate} fps)")
+
+        # Get full transcription once (more accurate than chunking audio)
+        transcription = self._get_transcription(video_path)
+
+        # Process each chunk
+        chunk_results: List[str] = []
+        for chunk_idx in range(num_chunks):
+            start_sec = chunk_idx * chunk_duration
+            end_sec = min((chunk_idx + 1) * chunk_duration, total_duration)
+
+            # Extract frames for this chunk
+            frames = self._extract_frames_for_range(video_path, start_sec, end_sec)
+            if not frames:
+                logger.warning(f"No frames extracted for chunk {chunk_idx + 1}")
+                continue
+
+            # Get transcript for this time range
+            chunk_transcription = self._get_segments_for_range(transcription, start_sec, end_sec)
+
+            # Build chunk prompt with metadata
+            chunk_prompt = self._build_chunk_prompt(
+                user_prompt=prompt,
+                chunk_idx=chunk_idx,
+                total_chunks=num_chunks,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                total_duration=total_duration,
+                num_frames=len(frames),
+                chunk_transcription=chunk_transcription,
+            )
+
+            logger.info(
+                f"Processing chunk {chunk_idx + 1}/{num_chunks} "
+                f"[{self._format_time(start_sec)} - {self._format_time(end_sec)}] "
+                f"({len(frames)} frames)"
+            )
+
+            result = self.capture(chunk_prompt, frames, **kwargs)
+            chunk_results.append(result)
+
+        if not chunk_results:
+            raise ValueError(f"No frames could be extracted from {video_path}")
+
+        # Synthesize all chunk results into final answer
+        return self._synthesize_results(chunk_results, prompt, total_duration)
+
+    async def _process_video_chunked_async(
+        self, video_path: str, prompt: str, total_duration: float, **kwargs: Any
+    ) -> str:
+        """
+        Async version of chunked video processing.
+        """
+        chunk_duration = self.config.chunk_duration_seconds
+        num_chunks = max(1, int((total_duration + chunk_duration - 1) // chunk_duration))
+
+        logger.info(f"Processing video in {num_chunks} chunks ({chunk_duration}s each, {self.config.frame_rate} fps)")
+
+        transcription = self._get_transcription(video_path)
+
+        chunk_results: List[str] = []
+        for chunk_idx in range(num_chunks):
+            start_sec = chunk_idx * chunk_duration
+            end_sec = min((chunk_idx + 1) * chunk_duration, total_duration)
+
+            frames = self._extract_frames_for_range(video_path, start_sec, end_sec)
+            if not frames:
+                continue
+
+            chunk_transcription = self._get_segments_for_range(transcription, start_sec, end_sec)
+
+            chunk_prompt = self._build_chunk_prompt(
+                user_prompt=prompt,
+                chunk_idx=chunk_idx,
+                total_chunks=num_chunks,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                total_duration=total_duration,
+                num_frames=len(frames),
+                chunk_transcription=chunk_transcription,
+            )
+
+            logger.info(
+                f"Processing chunk {chunk_idx + 1}/{num_chunks} "
+                f"[{self._format_time(start_sec)} - {self._format_time(end_sec)}] "
+                f"({len(frames)} frames)"
+            )
+
+            result = await self.capture_async(chunk_prompt, frames, **kwargs)
+            chunk_results.append(result)
+
+        if not chunk_results:
+            raise ValueError(f"No frames could be extracted from {video_path}")
+
+        if len(chunk_results) == 1:
+            return chunk_results[0]
+
+        # Async synthesis
+        total_fmt = self._format_time(total_duration)
+        synthesis_prompt = (
+            f"The following are analysis results from {len(chunk_results)} consecutive chunks "
+            f"of a video (total duration: {total_fmt}), processed at {self.config.frame_rate} fps.\n\n"
+        )
+        for i, result in enumerate(chunk_results):
+            chunk_start = i * chunk_duration
+            chunk_end = min((i + 1) * chunk_duration, total_duration)
+            start_fmt = self._format_time(chunk_start)
+            end_fmt = self._format_time(chunk_end)
+            synthesis_prompt += f"--- Chunk {i + 1}/{len(chunk_results)} [{start_fmt} - {end_fmt}] ---\n{result}\n\n"
+
+        synthesis_prompt += (
+            f"Based on all the chunk analyses above, provide a comprehensive and unified response to:\n{prompt}"
+        )
+
+        placeholder = Image.new("RGB", (1, 1), color=(0, 0, 0))
+        return await self.capture_async(synthesis_prompt, [placeholder])
+
     def process_video(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
         Extract frames from a video and analyze them with a vision model.
+
+        For videos longer than chunk_duration_seconds, processes in chunks
+        and synthesizes a final result. Each chunk includes metadata about
+        its position, fps, and matching transcript segments.
 
         Args:
             video_path: Path to the video file
@@ -384,24 +684,40 @@ class VidCapture:
         Returns:
             String containing the extracted knowledge from the video frames
         """
+        # Validate video format
+        self._validate_video(video_path)
+
         # Check cache first
         cache_key = self._get_cache_key(video_path, prompt)
         cached_result = self._get_from_cache(cache_key)  # type: ignore
         if cached_result:
             return cached_result
 
-        # Cache miss or invalidation - process the video
-        # Extract frames from the video
-        frames, _ = self.extract_frames(video_path)
+        # Get video duration to decide processing strategy
+        total_duration = self._get_video_duration(video_path)
 
-        if not frames:
-            raise ValueError(f"No frames could be extracted from {video_path}")
+        if total_duration > self.config.chunk_duration_seconds:
+            # Chunked processing for longer videos
+            result = self._process_video_chunked(video_path, prompt, total_duration, **kwargs)
+        else:
+            # Single-chunk processing (original flow with metadata)
+            frames = self._extract_frames_for_range(video_path, 0, total_duration)
+            if not frames:
+                raise ValueError(f"No frames could be extracted from {video_path}")
 
-        # Get transcription if enabled
-        transcription = self._get_transcription(video_path)
-        enriched_prompt = self._enrich_prompt_with_transcription(prompt, transcription)
-
-        result = self.capture(enriched_prompt, frames, **kwargs)
+            transcription = self._get_transcription(video_path)
+            chunk_transcription = self._get_segments_for_range(transcription, 0, total_duration)
+            enriched_prompt = self._build_chunk_prompt(
+                user_prompt=prompt,
+                chunk_idx=0,
+                total_chunks=1,
+                start_sec=0,
+                end_sec=total_duration,
+                total_duration=total_duration,
+                num_frames=len(frames),
+                chunk_transcription=chunk_transcription,
+            )
+            result = self.capture(enriched_prompt, frames, **kwargs)
 
         # Store in cache
         self._save_to_cache(cache_key, result)  # type: ignore
@@ -410,9 +726,10 @@ class VidCapture:
 
     async def process_video_async(self, video_path: str, prompt: str, **kwargs: Any) -> str:
         """
-        Asynchronous wrapper for process_video.
+        Asynchronous version of process_video.
 
-        Checks cache first, processes video if not in cache, and stores result.
+        For videos longer than chunk_duration_seconds, processes in chunks
+        and synthesizes a final result.
 
         Args:
             video_path: Path to the video file
@@ -422,25 +739,36 @@ class VidCapture:
         Returns:
             String containing the extracted knowledge from the video frames
         """
-        # Check cache first
+        self._validate_video(video_path)
+
         cache_key = self._get_cache_key(video_path, prompt)
         cached_result = await self._get_from_cache_async(cache_key)  # type: ignore
         if cached_result:
             return cached_result
 
-        # Cache miss or invalidation - process the video
-        frames, _ = self.extract_frames(video_path)
+        total_duration = self._get_video_duration(video_path)
 
-        if not frames:
-            raise ValueError(f"No frames could be extracted from {video_path}")
+        if total_duration > self.config.chunk_duration_seconds:
+            result = await self._process_video_chunked_async(video_path, prompt, total_duration, **kwargs)
+        else:
+            frames = self._extract_frames_for_range(video_path, 0, total_duration)
+            if not frames:
+                raise ValueError(f"No frames could be extracted from {video_path}")
 
-        # Get transcription if enabled
-        transcription = self._get_transcription(video_path)
-        enriched_prompt = self._enrich_prompt_with_transcription(prompt, transcription)
+            transcription = self._get_transcription(video_path)
+            chunk_transcription = self._get_segments_for_range(transcription, 0, total_duration)
+            enriched_prompt = self._build_chunk_prompt(
+                user_prompt=prompt,
+                chunk_idx=0,
+                total_chunks=1,
+                start_sec=0,
+                end_sec=total_duration,
+                total_duration=total_duration,
+                num_frames=len(frames),
+                chunk_transcription=chunk_transcription,
+            )
+            result = await self.capture_async(enriched_prompt, frames, **kwargs)
 
-        result = await self.capture_async(enriched_prompt, frames, **kwargs)
-
-        # Store in cache
         await self._save_to_cache_async(cache_key, result)  # type: ignore
 
         return result
