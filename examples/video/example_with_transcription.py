@@ -8,13 +8,14 @@ This example demonstrates how to:
 3. Combine visual and audio context for rich video analysis
 """
 
+import asyncio
 from pathlib import Path
 
 from aicapture import VidCapture, VideoConfig
 
 
-def run_example():
-    """Process a cooking tutorial video with audio transcription."""
+async def run_example_async():
+    """Process a cooking tutorial video with audio transcription (async version)."""
     # Path to the sample video
     vid_file = "tests/sample/vids/Maple_Baked_Salmon_Cooking_Tutorial.mp4"
 
@@ -50,7 +51,7 @@ def run_example():
         5. Estimated cooking time and difficulty level
         """
 
-        result = video_capture.process_video(vid_file, prompt)
+        result = await video_capture.process_video_async(vid_file, prompt)
 
         print("=" * 80)
         print("VIDEO ANALYSIS RESULT")
@@ -76,6 +77,11 @@ def run_example():
         import traceback
 
         traceback.print_exc()
+
+
+def run_example():
+    """Synchronous wrapper for the async example."""
+    asyncio.run(run_example_async())
 
 
 def run_transcription_only_example():

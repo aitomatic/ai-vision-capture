@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Example demonstrating transcription caching.
+Example demonstrating transcription caching with async processing.
 
 This example shows how transcriptions are automatically cached to save time and cost
 on repeated processing of the same video.
@@ -15,13 +15,14 @@ This means:
 - Different video OR different model OR different language = cache miss (API call)
 """
 
+import asyncio
 from pathlib import Path
 
 from aicapture import VidCapture, VideoConfig
 
 
-def main():
-    """Demonstrate transcription caching."""
+async def main_async():
+    """Demonstrate transcription caching with async processing."""
 
     vid_file = "tests/sample/vids/Maple_Baked_Salmon_Cooking_Tutorial.mp4"
 
@@ -41,7 +42,7 @@ def main():
         cache_dir="tmp/.vid_capture_cache",
     )
 
-    print("Processing video with transcription...")
+    print("Processing video with transcription (async)...")
     print("First run: Will call Whisper API and cache the result")
     print("Subsequent runs: Will load transcription from cache (instant)\n")
 
@@ -55,7 +56,7 @@ def main():
     """
 
     try:
-        result = video_capture.process_video(vid_file, prompt)
+        result = await video_capture.process_video_async(vid_file, prompt)
 
         print("=" * 80)
         print("RESULT")
@@ -78,6 +79,11 @@ def main():
         import traceback
 
         traceback.print_exc()
+
+
+def main():
+    """Synchronous wrapper for the async main function."""
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":
