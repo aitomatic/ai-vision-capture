@@ -92,6 +92,46 @@ class TimestampedTranscription:
         lrc_content = self.to_lrc()
         return f"\n--- Video Audio Transcription ---\n{lrc_content}\n---\n"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert transcription to a dictionary for caching.
+
+        Returns:
+            Dictionary representation suitable for JSON serialization.
+        """
+        return {
+            "segments": [{"start": seg.start, "end": seg.end, "text": seg.text} for seg in self.segments],
+            "language": self.language,
+            "duration": self.duration,
+            "full_text": self.full_text,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TimestampedTranscription":
+        """Create a TimestampedTranscription from a dictionary.
+
+        Args:
+            data: Dictionary with 'segments', 'language', 'duration', and 'full_text'.
+
+        Returns:
+            TimestampedTranscription instance.
+        """
+        segments = []
+        for seg_data in data.get("segments", []):
+            segments.append(
+                TranscriptionSegment(
+                    start=float(seg_data.get("start", 0.0)),
+                    end=float(seg_data.get("end", 0.0)),
+                    text=seg_data.get("text", ""),
+                )
+            )
+
+        return cls(
+            segments=segments,
+            language=data.get("language", ""),
+            duration=float(data.get("duration", 0.0)),
+            full_text=data.get("full_text", ""),
+        )
+
     @classmethod
     def from_whisper_response(cls, response: Dict[str, Any]) -> "TimestampedTranscription":
         """Create a TimestampedTranscription from a Whisper API verbose_json response.

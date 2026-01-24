@@ -100,10 +100,14 @@ Extract speech from video using OpenAI Whisper and include it as context for ric
 from aicapture import VidCapture, VideoConfig
 
 config = VideoConfig(
-    frame_rate=2,
+    frame_rate=2,                    # Extract 2 frames per second
     enable_transcription=True,       # Enable Whisper transcription
     transcription_model="whisper-1", # OpenAI Whisper model
+    max_duration_seconds=600,        # Process up to 10 minutes
     transcription_language="en",     # Optional language hint (None for auto-detect)
+    # Transcriptions are cached in: tmp/.vid_capture_cache/transcriptions/
+    cache_dir="tmp/.vid_capture_cache",
+
 )
 
 vid = VidCapture(config=config)

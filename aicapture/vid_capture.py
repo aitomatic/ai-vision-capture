@@ -91,6 +91,19 @@ class VidCapture:
         # Set up two-layer cache
         self.cache = TwoLayerCache(file_cache=file_cache, s3_cache=s3_cache, invalidate_cache=invalidate_cache)
 
+        # Initialize transcription cache (separate from video results cache)
+        transcription_cache_dir = f"{cache_dir}/transcriptions"
+        self.transcription_file_cache = FileCache(cache_dir=transcription_cache_dir)
+
+        # S3 cache for transcriptions
+        transcription_s3_cache = None
+        if self.config.cloud_bucket:
+            transcription_s3_cache = S3Cache(bucket=self.config.cloud_bucket, prefix="production/transcriptions")
+
+        self.transcription_cache = TwoLayerCache(
+            file_cache=self.transcription_file_cache, s3_cache=transcription_s3_cache, invalidate_cache=invalidate_cache
+        )
+
     def _validate_video(self, video_path: str) -> None:
         """
         Validate video file format and duration.
@@ -325,9 +338,94 @@ class VidCapture:
         """
         asyncio.run(self._save_to_cache_async(cache_key, result))
 
+    def _get_transcription_cache_key(self, video_path: str) -> Optional[str]:
+        """
+        Generate a cache key for transcription based on video hash, model, and language.
+
+        Args:
+            video_path: Path to the video file
+
+        Returns:
+            Cache key or None if generation fails
+        """
+        try:
+            # Calculate video file hash
+            video_hash = HashUtils.calculate_file_hash(video_path)
+
+            # Include model and language in cache key
+            model = self.config.transcription_model
+            language = self.config.transcription_language or "auto"
+
+            return f"{video_hash}_{model}_{language}"
+        except Exception as e:
+            logger.warning(f"Failed to generate transcription cache key: {e}")
+            return None
+
+    async def _load_transcription_from_cache_async(self, cache_key: str) -> Optional[TimestampedTranscription]:
+        """
+        Load transcription from cache asynchronously.
+
+        Args:
+            cache_key: The cache key to look up
+
+        Returns:
+            TimestampedTranscription or None if not found
+        """
+        if not cache_key or self.invalidate_cache:
+            return None
+
+        try:
+            cached_data = await self.transcription_cache.get(cache_key)
+            if cached_data and "transcription" in cached_data:
+                logger.info(f"Loaded transcription from cache: {cache_key}")
+                return TimestampedTranscription.from_dict(cached_data["transcription"])
+        except Exception as e:
+            logger.warning(f"Failed to load transcription from cache: {e}")
+
+        return None
+
+    def _load_transcription_from_cache(self, cache_key: str) -> Optional[TimestampedTranscription]:
+        """
+        Load transcription from cache (synchronous version).
+
+        Args:
+            cache_key: The cache key to look up
+
+        Returns:
+            TimestampedTranscription or None if not found
+        """
+        return asyncio.run(self._load_transcription_from_cache_async(cache_key))
+
+    async def _save_transcription_to_cache_async(self, cache_key: str, transcription: TimestampedTranscription) -> None:
+        """
+        Save transcription to cache asynchronously.
+
+        Args:
+            cache_key: The cache key to use
+            transcription: The transcription to cache
+        """
+        try:
+            cache_data = {"transcription": transcription.to_dict()}
+            await self.transcription_cache.set(cache_key, cache_data)
+            logger.info(f"Saved transcription to cache: {cache_key}")
+        except Exception as e:
+            logger.warning(f"Failed to save transcription to cache: {e}")
+
+    def _save_transcription_to_cache(self, cache_key: str, transcription: TimestampedTranscription) -> None:
+        """
+        Save transcription to cache (synchronous version).
+
+        Args:
+            cache_key: The cache key to use
+            transcription: The transcription to cache
+        """
+        asyncio.run(self._save_transcription_to_cache_async(cache_key, transcription))
+
     def _get_transcription(self, video_path: str) -> Optional[TimestampedTranscription]:
         """
         Get audio transcription for a video file.
+
+        Checks cache first, then calls Whisper API if not cached.
 
         Args:
             video_path: Path to the video file
@@ -338,7 +436,16 @@ class VidCapture:
         if not self.config.enable_transcription:
             return None
 
+        # Try to load from cache first
+        cache_key = self._get_transcription_cache_key(video_path)
+        if cache_key:
+            cached_transcription = self._load_transcription_from_cache(cache_key)
+            if cached_transcription:
+                return cached_transcription
+
+        # Cache miss - call Whisper API
         try:
+            logger.info(f"Transcription cache miss, calling Whisper API for {video_path}")
             transcriber = OpenAIAudioTranscriber(model=self.config.transcription_model)
             transcription = transcriber.transcribe_video(
                 video_path,
@@ -348,6 +455,11 @@ class VidCapture:
                 f"Transcription complete: {len(transcription.segments)} segments, "
                 f"duration={transcription.duration:.1f}s"
             )
+
+            # Save to cache for future use
+            if cache_key:
+                self._save_transcription_to_cache(cache_key, transcription)
+
             return transcription
         except Exception as e:
             logger.warning(f"Audio transcription failed, proceeding without it: {e}")
