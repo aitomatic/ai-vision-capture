@@ -934,14 +934,17 @@ class TestTranscriptionCaching:
 
         # Pre-populate cache
         cache_key = vid_capture._get_transcription_cache_key(str(TEST_VIDEO_PATH))
-        vid_capture.transcription_file_cache.set(cache_key, {
-            "transcription": {
-                "segments": [{"start": 0.0, "end": 5.0, "text": "Should be ignored."}],
-                "language": "en",
-                "duration": 5.0,
-                "full_text": "Should be ignored.",
-            }
-        })
+        vid_capture.transcription_file_cache.set(
+            cache_key,
+            {
+                "transcription": {
+                    "segments": [{"start": 0.0, "end": 5.0, "text": "Should be ignored."}],
+                    "language": "en",
+                    "duration": 5.0,
+                    "full_text": "Should be ignored.",
+                }
+            },
+        )
 
         mock_transcription = TimestampedTranscription(
             segments=[TranscriptionSegment(start=0.0, end=5.0, text="Fresh result.")],

@@ -462,7 +462,7 @@ class VidCapture:
         # Try to load from cache first (async)
         cache_key = self._get_transcription_cache_key(video_path)
         if cache_key:
-            cached_transcription = await self._load_transcription_from_cache_async(cache_key)
+            cached_transcription = self._load_transcription_from_cache(cache_key)
             if cached_transcription:
                 return cached_transcription
 
@@ -481,7 +481,7 @@ class VidCapture:
 
             # Save to cache for future use (async)
             if cache_key:
-                await self._save_transcription_to_cache_async(cache_key, transcription)
+                self._save_transcription_to_cache(cache_key, transcription)
 
             return transcription
         except Exception as e:
