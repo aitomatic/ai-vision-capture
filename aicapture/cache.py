@@ -4,6 +4,7 @@ import abc
 import asyncio
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -466,6 +467,30 @@ class ImageCache:
 
         except Exception as e:
             logger.error(f"Error downloading from S3: {e}")
+            return False
+
+    def cleanup_local_cache(self, file_hash: str) -> bool:
+        """Remove the local image cache directory for a specific file hash.
+
+        This should be called after successful processing to free disk space.
+
+        Args:
+            file_hash: Hash of the file whose cached images should be removed
+
+        Returns:
+            True if the cache was cleaned up, False otherwise
+        """
+        cache_path = self._get_local_cache_path(file_hash)
+        try:
+            if cache_path.exists() and cache_path.is_dir():
+                shutil.rmtree(cache_path)
+                logger.info(f"Cleaned up image cache for {file_hash} at {cache_path}")
+                return True
+            else:
+                logger.debug(f"No image cache to clean up for {file_hash}")
+                return False
+        except Exception as e:
+            logger.warning(f"Failed to clean up image cache at {cache_path}: {e}")
             return False
 
     async def cache_images(self, cache_path: Path, file_hash: str) -> None:

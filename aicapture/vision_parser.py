@@ -657,6 +657,10 @@ class VisionParser:
             # image_cache_path = self._image_cache._get_local_cache_path(file_hash)
             # await self._image_cache.cache_images(image_cache_path, file_hash)
 
+            # Clean up local image cache to free disk space
+            if file_hash:
+                self._image_cache.cleanup_local_cache(file_hash)
+
             return result
 
         except FileNotFoundError:
