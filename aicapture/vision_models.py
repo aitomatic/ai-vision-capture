@@ -154,7 +154,10 @@ class VisionModel(ABC):
         """Convert PIL Image to base64 string."""
         buffered = BytesIO()
         image.save(buffered, format="JPEG", quality=95)  # High quality JPEG
-        img_str = base64.b64encode(buffered.getvalue()).decode()
+        raw = buffered.getvalue()
+        buffered.close()
+        img_str = base64.b64encode(raw).decode()
+        del raw
         return img_str, "image/jpeg"
 
     @property

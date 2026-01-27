@@ -193,8 +193,11 @@ class VisionParser:
         matrix = fitz.Matrix(zoom, zoom)
         pix = page.get_pixmap(matrix=matrix)
 
-        # Convert pixmap to PIL Image
+        # Convert pixmap to PIL Image, then free the pixmap immediately.
+        # At 333 DPI the pixmap is ~31 MB; deleting it avoids holding both
+        # the pixmap and the PIL copy in memory during the cache save below.
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        del pix
 
         # Cache the image locally
         try:
@@ -241,6 +244,24 @@ class VisionParser:
     def _make_user_message(self, text_content: str) -> str:
         """Create enhanced user message with text extraction reference."""
         return f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
+
+    async def _process_page_and_release(
+        self,
+        image: Image.Image,
+        page_number: int,
+        page_hash: str,
+        text_content: str = "",
+    ) -> Dict:
+        """Process a single page and release the image when done to free memory.
+
+        This wrapper ensures the PIL Image is closed as soon as processing completes,
+        rather than waiting for the entire chunk to finish. At 333 DPI, each page image
+        is ~31 MB, so releasing them progressively reduces peak memory usage significantly.
+        """
+        try:
+            return await self.process_page_async(image, page_number, page_hash, text_content)
+        finally:
+            image.close()
 
     async def process_page_async(
         self,
@@ -390,55 +411,48 @@ class VisionParser:
 
         total_words = 0
         tasks = []
-        page_images = []
 
-        try:
-            # Process each page in the chunk
-            for page_idx in range(chunk_start, chunk_end):
-                page_number = page_idx + 1
+        # Process each page in the chunk
+        for page_idx in range(chunk_start, chunk_end):
+            page_number = page_idx + 1
 
-                # Skip if page is already in partial results
-                if page_number in partial_results:
-                    logger.info(f"Page {page_number} already in partial results, skipping")
-                    continue
+            # Skip if page is already in partial results
+            if page_number in partial_results:
+                logger.info(f"Page {page_number} already in partial results, skipping")
+                continue
 
-                # Get page info with text and hash
-                page_info = page_extractions[page_idx]
-                page_hash = page_info["hash"]
-                text_content = page_info["text"]
+            # Get page info with text and hash
+            page_info = page_extractions[page_idx]
+            page_hash = page_info["hash"]
+            text_content = page_info["text"]
 
-                # Get the page image from cache or generate it
-                img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
-                page_images.append(img)
+            # Get the page image from cache or generate it
+            img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
 
-                # Create task to process the page
-                task = asyncio.create_task(self.process_page_async(img, page_number, page_hash, text_content))
-                tasks.append(task)
+            # Each task releases its own image when done via _process_page_and_release,
+            # so images are freed progressively as API calls return rather than waiting
+            # for the entire chunk to finish.
+            task = asyncio.create_task(
+                self._process_page_and_release(img, page_number, page_hash, text_content)
+            )
+            tasks.append(task)
 
-            # Process all tasks concurrently
-            if tasks:
-                start_time = time.time()
-                batch_results = await asyncio.gather(*tasks)
-                duration = time.time() - start_time
+        # Process all tasks concurrently
+        if tasks:
+            start_time = time.time()
+            batch_results = await asyncio.gather(*tasks)
+            duration = time.time() - start_time
 
-                # Calculate words in batch
-                batch_words = sum(len(page["page_content"].split()) for page in batch_results)
-                logger.info(f"Completed batch in {duration:.2f} seconds")
+            # Calculate words in batch
+            batch_words = sum(len(page["page_content"].split()) for page in batch_results)
+            logger.info(f"Completed batch in {duration:.2f} seconds")
 
-                # Add batch results to all pages
-                all_pages.extend(batch_results)
-                total_words += batch_words
+            # Add batch results to all pages
+            all_pages.extend(batch_results)
+            total_words += batch_words
 
-                # Save partial results after each batch
-                await self._save_partial_results(cache_key, all_pages)
-
-        finally:
-            # Clean up page images to free memory
-            for img in page_images:
-                try:
-                    img.close()
-                except Exception:
-                    pass  # Continue cleanup even if one image fails
+            # Save partial results after each batch
+            await self._save_partial_results(cache_key, all_pages)
 
         # Add already processed pages from partial results for this chunk
         for page_idx in range(chunk_start, chunk_end):
@@ -479,54 +493,45 @@ class VisionParser:
 
         total_words = 0
         tasks = []
-        page_images = []
 
-        try:
-            for page_idx in page_indexes:
-                page_number = page_idx + 1
+        for page_idx in page_indexes:
+            page_number = page_idx + 1
 
-                # Skip if page is already in partial results
-                if page_number in partial_results:
-                    logger.info(f"Page {page_number} already in partial results, skipping")
-                    continue
+            # Skip if page is already in partial results
+            if page_number in partial_results:
+                logger.info(f"Page {page_number} already in partial results, skipping")
+                continue
 
-                # Get page info with text and hash
-                page_info = page_extractions[page_idx]
-                page_hash = page_info["hash"]
-                text_content = page_info["text"]
+            # Get page info with text and hash
+            page_info = page_extractions[page_idx]
+            page_hash = page_info["hash"]
+            text_content = page_info["text"]
 
-                # Get the page image from cache or generate it
-                img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
-                page_images.append(img)
+            # Get the page image from cache or generate it
+            img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
 
-                # Create task to process the page
-                task = asyncio.create_task(self.process_page_async(img, page_number, page_hash, text_content))
-                tasks.append(task)
+            # Each task releases its own image when done via _process_page_and_release
+            task = asyncio.create_task(
+                self._process_page_and_release(img, page_number, page_hash, text_content)
+            )
+            tasks.append(task)
 
-            # Process all tasks concurrently
-            if tasks:
-                start_time = time.time()
-                batch_results = await asyncio.gather(*tasks)
-                duration = time.time() - start_time
+        # Process all tasks concurrently
+        if tasks:
+            start_time = time.time()
+            batch_results = await asyncio.gather(*tasks)
+            duration = time.time() - start_time
 
-                # Calculate words in batch
-                batch_words = sum(len(page["page_content"].split()) for page in batch_results)
-                logger.info(f"Completed batch in {duration:.2f} seconds")
+            # Calculate words in batch
+            batch_words = sum(len(page["page_content"].split()) for page in batch_results)
+            logger.info(f"Completed batch in {duration:.2f} seconds")
 
-                # Add batch results to all pages
-                all_pages.extend(batch_results)
-                total_words += batch_words
+            # Add batch results to all pages
+            all_pages.extend(batch_results)
+            total_words += batch_words
 
-                # Save partial results after each batch
-                await self._save_partial_results(cache_key, all_pages)
-
-        finally:
-            # Clean up page images to free memory
-            for img in page_images:
-                try:
-                    img.close()
-                except Exception:
-                    pass
+            # Save partial results after each batch
+            await self._save_partial_results(cache_key, all_pages)
 
         # Add already processed pages from partial results for this chunk
         for page_idx in page_indexes:
