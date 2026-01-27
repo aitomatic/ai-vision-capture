@@ -229,25 +229,40 @@ class TwoLayerCache:
         self.s3_cache = s3_cache
         self.invalidate_cache = invalidate_cache
 
-    async def get(self, key: str, update_cache: bool = True) -> Optional[Dict[str, Any]]:
-        """Get an item from the cache, checking S3 cache first then file cache."""
+    async def get(
+        self, key: str, update_cache: bool = True, fallback_keys: Optional[List[str]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Get an item from the cache, checking S3 cache first then file cache.
+
+        Args:
+            key: Primary cache key to look up
+            update_cache: Whether to check S3 and backfill file cache
+            fallback_keys: Optional list of fallback keys to try if the primary key misses.
+                Useful for backwards compatibility with older cache key formats.
+        """
         if self.invalidate_cache:
             return None
 
-        # Check S3 cache first if available
-        if self.s3_cache and update_cache:
-            result = await self.s3_cache.aget(key)
-            if result:
-                # Save to file cache for future use
-                logger.info("Found result in S3 cache, saving to file cache")
-                self.file_cache.set(key, result)
-                return result
+        keys_to_try = [key] + (fallback_keys or [])
 
-        # Fall back to file cache if S3 cache misses or is not available
-        result = self.file_cache.get(key)
-        if result:
-            logger.info("Found result in file cache")
-            return result
+        for i, cache_key in enumerate(keys_to_try):
+            is_fallback = i > 0
+            if is_fallback:
+                logger.info(f"Primary cache key not found, trying fallback key: {cache_key}")
+
+            # Check S3 cache first if available
+            if self.s3_cache and update_cache:
+                result = await self.s3_cache.aget(cache_key)
+                if result:
+                    logger.info(f"Found result in S3 cache{' (fallback)' if is_fallback else ''}, saving to file cache")
+                    self.file_cache.set(cache_key, result)
+                    return result
+
+            # Fall back to file cache if S3 cache misses or is not available
+            result = self.file_cache.get(cache_key)
+            if result:
+                logger.info(f"Found result in file cache{' (fallback)' if is_fallback else ''}")
+                return result
 
         return None
 
