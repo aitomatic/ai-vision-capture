@@ -1,20 +1,17 @@
 # flake8: noqa: E501
 
 import abc
-import asyncio
 import hashlib
 import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from loguru import logger
 
 from aicapture.utils import (
     delete_file_from_s3_async,
-    download_file_from_s3_async,
     get_file_from_s3_async,
-    list_objects_from_s3_async,
     upload_file_to_s3_async,
 )
 
@@ -333,19 +330,17 @@ class HashUtils:
 
 
 class ImageCache:
-    """A specialized cache implementation for storing PDF page images."""
+    """A specialized cache implementation for storing PDF page images locally."""
 
     def __init__(
         self,
         cache_dir: Optional[Union[str, Path]] = None,
-        cloud_bucket: Optional[str] = None,
     ) -> None:
         """Initialize the image cache.
 
         Args:
             cache_dir: Base directory for storing cached images.
                       Defaults to tmp/.vision_parser_cache/images
-            cloud_bucket: S3 bucket name
         """
         try:
             self.cache_dir = Path(cache_dir) / "images" if cache_dir else Path("tmp") / ".vision_parser_cache/images"
@@ -354,7 +349,6 @@ class ImageCache:
                 self.cache_dir.parent.mkdir(parents=True, exist_ok=True)
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Initialized image cache at {self.cache_dir}")
-            self.cloud_bucket = cloud_bucket
         except PermissionError as e:
             logger.error(f"Permission denied when creating image cache directory at {self.cache_dir}: {e}")
             raise
@@ -366,10 +360,6 @@ class ImageCache:
         """Get the local cache directory path for a file hash."""
         return self.cache_dir / file_hash
 
-    def _get_s3_prefix(self, file_hash: str) -> str:
-        """Get the S3 prefix for a file hash."""
-        return f"production/images/raw_images/{file_hash}"
-
     def _validate_cache(self, cache_path: Path, expected_pages: int) -> bool:
         """Validate that the cache directory exists and
         contains the expected number of files."""
@@ -379,95 +369,6 @@ class ImageCache:
         # Count actual image files in the directory
         image_files = list(cache_path.glob("*.png"))
         return len(image_files) >= expected_pages
-
-    async def download_images_to_local_cache(self, file_hash: str, expected_pages: int = 0) -> bool:
-        """Download cached images from S3 to local cache.
-
-        Args:
-            file_hash: Hash of the PDF file
-            expected_pages: Expected number of pages (optional validation check)
-
-        Returns:
-            True if images were downloaded successfully, False otherwise
-        """
-        local_cache_path = self._get_local_cache_path(file_hash)
-
-        # If we have a local cache already with the expected number of pages, we're done
-        if expected_pages > 0 and self._validate_cache(local_cache_path, expected_pages):
-            logger.info(f"Found images in local cache: {local_cache_path}")
-            return True
-
-        # Try S3 cache if local cache misses or is incomplete
-        if not self.cloud_bucket:
-            logger.info("No cloud bucket configured, skipping S3 download")
-            return False
-
-        try:
-            logger.info(f"Checking S3 cache for {file_hash}")
-            s3_prefix = self._get_s3_prefix(file_hash)
-
-            # List objects in S3 folder asynchronously
-            contents = await list_objects_from_s3_async(self.cloud_bucket, s3_prefix)
-
-            # Check if we have any files
-            if not contents:
-                logger.info(f"No images found in S3 cache: {s3_prefix}")
-                return False
-
-            # If we have an expected count, validate
-            if expected_pages > 0 and len(contents) < expected_pages:
-                logger.info(f"S3 cache incomplete: found {len(contents)} objects, expected {expected_pages}")
-                return False
-
-            logger.info(f"Found {len(contents)} images in S3 cache: {s3_prefix}")
-
-            # Create local cache directory
-            local_cache_path.mkdir(parents=True, exist_ok=True)
-
-            # Download files with their original names asynchronously
-            download_tasks = []
-            for s3_obj in contents:
-                s3_key = s3_obj["Key"]
-
-                # Skip non-image files or directory markers
-                if not s3_key.lower().endswith((".png", ".jpg", ".jpeg")):
-                    logger.debug(f"Skipping non-image file: {s3_key}")
-                    continue
-
-                # Extract the filename from the key
-                filename = Path(s3_key).name
-                local_path = local_cache_path / filename
-
-                # Skip if the file already exists locally
-                if local_path.exists():
-                    logger.debug(f"File already exists locally: {local_path}")
-                    continue
-
-                # Create download task
-                download_tasks.append(download_file_from_s3_async(self.cloud_bucket, s3_key, str(local_path)))
-
-            # Execute all download tasks concurrently
-            if download_tasks:
-                logger.info(f"Downloading {len(download_tasks)} files from S3...")
-                results = await asyncio.gather(*download_tasks)
-                downloaded_count = sum(1 for result in results if result)
-                logger.info(f"Downloaded {downloaded_count} images from S3 to local cache")
-            else:
-                logger.info("No new files to download from S3")
-                downloaded_count = 0
-
-            # Count total valid files in cache
-            total_files = len(list(local_cache_path.glob("*.png")))
-
-            # Verify we got what we expected
-            if expected_pages > 0:
-                return total_files >= expected_pages
-            else:
-                return total_files > 0
-
-        except Exception as e:
-            logger.error(f"Error downloading from S3: {e}")
-            return False
 
     def cleanup_local_cache(self, file_hash: str) -> bool:
         """Remove the local image cache directory for a specific file hash.
@@ -493,51 +394,3 @@ class ImageCache:
             logger.warning(f"Failed to clean up image cache at {cache_path}: {e}")
             return False
 
-    async def cache_images(self, cache_path: Path, file_hash: str) -> None:
-        """Upload cached images from a local directory to S3.
-
-        Args:
-            cache_path: Path to the local cache directory containing images
-            file_hash: Hash of the PDF file
-        """
-        if not self.cloud_bucket:
-            logger.info("No cloud bucket configured, skipping S3 upload")
-            return
-
-        try:
-            s3_prefix = self._get_s3_prefix(file_hash)
-
-            # Ensure cache path exists
-            if not cache_path.exists() or not cache_path.is_dir():
-                logger.warning(f"Cache path does not exist or is not a directory: {cache_path}")
-                return
-
-            # Get all PNG files in the cache directory
-            png_files = list(cache_path.glob("*.png"))
-            if not png_files:
-                logger.warning(f"No PNG files found in cache directory: {cache_path}")
-                return
-
-            logger.info(f"Uploading {len(png_files)} images from {cache_path} to S3")
-
-            # Create upload tasks for each file
-            upload_tasks: List[asyncio.Future[None]] = []
-            for local_path in png_files:
-                # Use the original filename in S3
-                filename = local_path.name
-                s3_key = f"{s3_prefix}/{filename}"
-
-                # Create upload task - explicitly use None to handle typing
-                task = asyncio.create_task(upload_file_to_s3_async(self.cloud_bucket, str(local_path), s3_key))
-                upload_tasks.append(task)
-
-            # Execute all upload tasks concurrently
-            if upload_tasks:
-                logger.info(f"Starting {len(upload_tasks)} upload tasks...")
-                await asyncio.gather(*upload_tasks)
-                logger.info(f"Successfully uploaded {len(upload_tasks)} images to S3 for {file_hash}")
-            else:
-                logger.info("No files to upload")
-
-        except Exception as e:
-            logger.error(f"Error uploading cache to S3: {e}")
