@@ -594,7 +594,8 @@ class VisionParser:
                 cache_key = cache_key + pages_suffix
 
             # Check cache unless invalidate_cache is True
-            cached_result = await self.cache.get(cache_key)
+            # Fall back to file_hash key for backwards compatibility with older cache formats
+            cached_result = await self.cache.get(cache_key, fallback_keys=[file_hash])
             if cached_result:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)
@@ -765,7 +766,8 @@ class VisionParser:
 
         try:
             # Check cache unless invalidate_cache is True
-            cached_result = await self.cache.get(cache_key)
+            # Fall back to file_hash key for backwards compatibility with older cache formats
+            cached_result = await self.cache.get(cache_key, fallback_keys=[file_hash])
             if cached_result:
                 logger.debug("Found cached results - using cached data")
                 self.save_markdown_output(cached_result)

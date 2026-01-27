@@ -309,5 +309,105 @@ class TestTwoLayerCache:
         assert file_cache.get("key2") is None
 
 
+class TestTwoLayerCacheFallback:
+    """Test cases for TwoLayerCache fallback key behavior."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_key_hit_when_primary_misses(
+        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
+    ) -> None:
+        """Test that fallback key is used when primary key misses."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        fallback_key = "file_hash_only"
+        primary_key = "file_hash_only_prompt_hash"
+
+        # Store data under fallback key (simulating old cache format)
+        file_cache.set(fallback_key, sample_cache_data)
+
+        # Primary key should miss, but fallback should hit
+        result = await cache.get(primary_key, fallback_keys=[fallback_key])
+        assert result == sample_cache_data
+
+    @pytest.mark.asyncio
+    async def test_primary_key_preferred_over_fallback(
+        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
+    ) -> None:
+        """Test that primary key is preferred when both primary and fallback exist."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        fallback_key = "file_hash_only"
+        primary_key = "file_hash_only_prompt_hash"
+
+        primary_data = {"source": "primary", "content": "primary data"}
+        fallback_data = {"source": "fallback", "content": "fallback data"}
+
+        file_cache.set(primary_key, primary_data)
+        file_cache.set(fallback_key, fallback_data)
+
+        result = await cache.get(primary_key, fallback_keys=[fallback_key])
+        assert result == primary_data
+
+    @pytest.mark.asyncio
+    async def test_no_fallback_keys_returns_none(self, temp_cache_dir: Path) -> None:
+        """Test that None is returned when no keys match and no fallbacks given."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        result = await cache.get("nonexistent_key")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_keys_all_miss_returns_none(self, temp_cache_dir: Path) -> None:
+        """Test that None is returned when primary and all fallback keys miss."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        result = await cache.get("primary", fallback_keys=["fallback1", "fallback2"])
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_multiple_fallback_keys_first_hit_wins(
+        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
+    ) -> None:
+        """Test that the first matching fallback key is used."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        first_fallback_data = {"source": "first_fallback"}
+        second_fallback_data = {"source": "second_fallback"}
+
+        file_cache.set("fallback1", first_fallback_data)
+        file_cache.set("fallback2", second_fallback_data)
+
+        result = await cache.get("primary", fallback_keys=["fallback1", "fallback2"])
+        assert result == first_fallback_data
+
+    @pytest.mark.asyncio
+    async def test_fallback_skipped_when_invalidate_cache(
+        self, temp_cache_dir: Path, sample_cache_data: Dict[str, Any]
+    ) -> None:
+        """Test that fallback keys are skipped when invalidate_cache is True."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None, invalidate_cache=True)
+
+        fallback_key = "file_hash_only"
+        file_cache.set(fallback_key, sample_cache_data)
+
+        result = await cache.get("primary", fallback_keys=[fallback_key])
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_with_empty_list(self, temp_cache_dir: Path) -> None:
+        """Test that empty fallback_keys list behaves same as None."""
+        file_cache = FileCache(str(temp_cache_dir))
+        cache = TwoLayerCache(file_cache, None)
+
+        result = await cache.get("nonexistent", fallback_keys=[])
+        assert result is None
+
+
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__])
