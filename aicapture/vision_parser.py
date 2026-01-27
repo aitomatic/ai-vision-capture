@@ -119,7 +119,7 @@ class VisionParser:
         if max_concurrent_tasks is not None:
             self.__class__._semaphore = Semaphore(max_concurrent_tasks)
 
-        self._image_cache = ImageCache(cache_dir, cloud_bucket)
+        self._image_cache = ImageCache(cache_dir)
         s3_cache = None
         if self.cloud_bucket:
             from aicapture.cache import S3Cache
@@ -653,9 +653,9 @@ class VisionParser:
             # Generate markdown output
             self.save_markdown_output(result)
 
-            # Upload any newly generated images to S3
-            # image_cache_path = self._image_cache._get_local_cache_path(file_hash)
-            # await self._image_cache.cache_images(image_cache_path, file_hash)
+            # Clean up local image cache to free disk space
+            if file_hash:
+                self._image_cache.cleanup_local_cache(file_hash)
 
             return result
 

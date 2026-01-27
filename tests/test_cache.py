@@ -179,12 +179,6 @@ class TestImageCache:
         assert cache.cache_dir == Path(temp_cache_dir) / "images"
         assert cache.cache_dir.exists()
 
-    def test_init_with_cloud_bucket(self, temp_cache_dir: Path) -> None:
-        """Test ImageCache initialization with cloud bucket."""
-        cache = ImageCache(str(temp_cache_dir), cloud_bucket="test-bucket")
-        assert cache.cloud_bucket == "test-bucket"
-        assert cache.cache_dir == Path(temp_cache_dir) / "images"
-
     def test_get_local_cache_path(self, temp_cache_dir: Path) -> None:
         """Test local cache path generation."""
         cache = ImageCache(str(temp_cache_dir))
@@ -192,14 +186,6 @@ class TestImageCache:
         path = cache._get_local_cache_path(file_hash)
         expected_path = Path(temp_cache_dir) / "images" / file_hash
         assert path == expected_path
-
-    def test_get_s3_prefix(self, temp_cache_dir: Path) -> None:
-        """Test S3 prefix generation."""
-        cache = ImageCache(str(temp_cache_dir))
-        file_hash = "abc123"
-        prefix = cache._get_s3_prefix(file_hash)
-        expected_prefix = f"production/images/raw_images/{file_hash}"
-        assert prefix == expected_prefix
 
     def test_validate_cache_exists(self, temp_cache_dir: Path) -> None:
         """Test cache validation when cache exists."""
