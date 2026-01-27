@@ -1,6 +1,6 @@
 [project]
 name = "aicapture"
-version = "0.5.0"
+version = "0.5.1"
 description = "A Python module to capture knowledge from documents using Vision Language Models (VLMs)"
 authors = [
     {name = "Aitomatic"}
