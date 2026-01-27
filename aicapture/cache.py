@@ -5,7 +5,7 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from loguru import logger
 
@@ -393,4 +393,3 @@ class ImageCache:
         except Exception as e:
             logger.warning(f"Failed to clean up image cache at {cache_path}: {e}")
             return False
-
