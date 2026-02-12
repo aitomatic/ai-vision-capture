@@ -21,6 +21,13 @@ from aicapture.audio_transcriber import (
     extract_audio_from_video,
 )
 
+try:
+    import moviepy  # noqa: F401
+
+    _has_moviepy = True
+except ImportError:
+    _has_moviepy = False
+
 # Test video with known narration
 TEST_VIDEO_PATH = Path(__file__).parent / "sample" / "vids" / "instruction_narrated.mp4"
 
@@ -175,6 +182,7 @@ class TestTimestampedTranscription:
 class TestAudioExtraction:
     """Tests for extracting audio from video files."""
 
+    @pytest.mark.skipif(not _has_moviepy, reason="moviepy not installed")
     def test_extract_audio_from_video(self):
         """Test extracting audio from the test video."""
         assert TEST_VIDEO_PATH.exists(), f"Test video not found: {TEST_VIDEO_PATH}"
@@ -191,6 +199,7 @@ class TestAudioExtraction:
             # File should have content
             assert Path(audio_path).stat().st_size > 0
 
+    @pytest.mark.skipif(not _has_moviepy, reason="moviepy not installed")
     def test_extract_audio_output_format(self):
         """Test that extracted audio is in mp3 format by default."""
         assert TEST_VIDEO_PATH.exists()
