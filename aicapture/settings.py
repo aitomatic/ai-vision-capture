@@ -95,6 +95,8 @@ class GeminiVisionConfig(VisionModelConfig):
 
     api_key: str = os.getenv("GEMINI_API_KEY", "")
     model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    max_tokens: int = int(os.getenv("GEMINI_MAX_TOKENS", "8192"))
+    temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
 
     def __post_init__(self) -> None:
         """Validate Gemini configuration."""

@@ -542,13 +542,151 @@ class GeminiVisionModel(OpenAIVisionModel):
 
     GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
+    # Fallback prompt used when the primary prompt triggers Gemini's recitation filter.
+    # Gemini blocks responses when it detects the model would reproduce verbatim content.
+    # Prompts with aggressive "extract everything exactly" instructions (e.g. "DO NOT summarize",
+    # "no meta-commentary") are most likely to trigger this on text-heavy document pages.
+    FALLBACK_PROMPT = "Extract the document content comprehensively as markdown. Include all text, tables, charts, diagrams, and image descriptions."
+
     def __init__(
         self,
         model: str = GeminiVisionConfig.model,
         api_key: str = GeminiVisionConfig.api_key,
         **kwargs: Any,
     ) -> None:
+        # Use Gemini-specific defaults if not explicitly provided
+        if "max_tokens" not in kwargs:
+            kwargs["max_tokens"] = int(os.getenv("GEMINI_MAX_TOKENS", "8192"))
+        if "temperature" not in kwargs:
+            kwargs["temperature"] = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
         super().__init__(model=model, api_key=api_key, api_base=self.GEMINI_BASE_URL, **kwargs)
+
+    async def process_image_async(
+        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
+    ) -> str:
+        """Process image(s) using Gemini Vision asynchronously.
+
+        Includes retry logic for Gemini's recitation content filter. When the filter
+        blocks a response (completion_tokens=0, finish_reason contains 'content_filter'),
+        retries with a simplified fallback prompt that avoids triggering the filter.
+        """
+        content = self._prepare_content(image, prompt)
+
+        message: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": content,  # type: ignore
+        }
+
+        response = await self.aclient.chat.completions.create(
+            model=self.model,
+            messages=[message],
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            stream=kwargs.get("stream", False),
+        )
+
+        # Log token usage
+        usage = {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+        self.log_token_usage(usage)
+
+        # Check for Gemini content filter (recitation block)
+        finish_reason = response.choices[0].finish_reason or ""
+        if "content_filter" in finish_reason or (
+            response.usage.completion_tokens == 0 and response.choices[0].message.content is None
+        ):
+            logger.warning(
+                f"Gemini content filter triggered (finish_reason={finish_reason}). " f"Retrying with fallback prompt."
+            )
+            # Retry with fallback prompt
+            fallback_content = self._prepare_content(image, self.FALLBACK_PROMPT)
+            fallback_message: ChatCompletionUserMessageParam = {
+                "role": "user",
+                "content": fallback_content,  # type: ignore
+            }
+            response = await self.aclient.chat.completions.create(
+                model=self.model,
+                messages=[fallback_message],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                stream=kwargs.get("stream", False),
+            )
+            # Log retry token usage
+            retry_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            self.log_token_usage(retry_usage)
+
+            retry_finish = response.choices[0].finish_reason or ""
+            if "content_filter" in retry_finish:
+                logger.warning(f"Gemini content filter triggered again on retry (finish_reason={retry_finish})")
+
+        return response.choices[0].message.content or ""
+
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any) -> str:
+        """Process image(s) using Gemini Vision synchronously.
+
+        Includes retry logic for Gemini's recitation content filter.
+        """
+        content = self._prepare_content(image, prompt)
+
+        message: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": content,  # type: ignore
+        }
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[message],
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            stream=kwargs.get("stream", False),
+        )
+
+        # Log token usage
+        usage = {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+        self.log_token_usage(usage)
+
+        # Check for Gemini content filter (recitation block)
+        finish_reason = response.choices[0].finish_reason or ""
+        if "content_filter" in finish_reason or (
+            response.usage.completion_tokens == 0 and response.choices[0].message.content is None
+        ):
+            logger.warning(
+                f"Gemini content filter triggered (finish_reason={finish_reason}). " f"Retrying with fallback prompt."
+            )
+            fallback_content = self._prepare_content(image, self.FALLBACK_PROMPT)
+            fallback_message: ChatCompletionUserMessageParam = {
+                "role": "user",
+                "content": fallback_content,  # type: ignore
+            }
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[fallback_message],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                stream=kwargs.get("stream", False),
+            )
+            retry_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            self.log_token_usage(retry_usage)
+
+            retry_finish = response.choices[0].finish_reason or ""
+            if "content_filter" in retry_finish:
+                logger.warning(f"Gemini content filter triggered again on retry (finish_reason={retry_finish})")
+
+        return response.choices[0].message.content or ""
 
 
 class AzureOpenAIVisionModel(OpenAIVisionModel):

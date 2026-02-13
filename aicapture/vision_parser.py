@@ -19,44 +19,35 @@ from aicapture.content_cleaner import ContentCleaner
 from aicapture.settings import MAX_CONCURRENT_TASKS, ImageQuality
 from aicapture.vision_models import VisionModel, create_default_vision_model
 
-DEFAULT_PROMPT = """
-<GENERAL_INSTRUCTIONS>
-Extract the document content, following these guidelines:
+DEFAULT_PROMPT = """Extract the document content comprehensively as markdown, following these guidelines:
 
 Text Content:
-- Extract all text in correct reading order, preserving original formatting and hierarchy
-- Maintain section headers, subheaders, and their relationships
-- Include all numerical values, units, and technical specifications,
-- DO NOT summarize the content or skip any sections, we need all the details as possible.
+- Extract all text in correct reading order, preserving original formatting and hierarchy.
+- Maintain section headers, subheaders, and their relationships.
+- Include all numerical values, units, and technical specifications.
+- Provide complete content for every section.
 
 Tables:
-- Convert to markdown format with clear column headers, keep the nested structure as it is.
-- Preserve all numerical values, units, and relationships
-- Include table title/caption and any reference numbers
+- Convert to markdown table format with clear column headers.
+- Keep nested structure intact.
+- Include table title/caption and any reference numbers.
 
 Graphs & Charts:
-- Identify the visualization type (line graph, bar chart, scatter plot, etc.)
-- List all axes labels and their units
-- Describe all the insights, trends, or patterns
-- Include details for all annotations, legends, labels, etc.
-- Explain what the visualization is demonstrating
+- Identify the visualization type (line graph, bar chart, scatter plot, etc.).
+- List all axes labels and their units.
+- Describe the insights, trends, or patterns shown.
+- Include all annotations, legends, and labels.
 
 Diagrams & Schematics:
-- Identify the type of diagram (block diagram, circuit schematic, flowchart, etc.)
-- List all components and their functions
-- Describe all connections and relationships between components
-- Include all labels, values, or specifications
-- Explain purpose and operation of the diagram
+- Identify the type of diagram (block diagram, circuit schematic, flowchart, etc.).
+- List all components and their connections.
+- Include all labels, values, or specifications.
 
 Images:
-- Describe what the image shows
-- Include all measurements, dimensions, or specifications
-- Capture all text, labels, or annotations
-- Explain the purpose or meaning of the image
+- Describe what the image shows.
+- Capture all visible text, labels, or annotations.
 
-Don't generate repetitive empty lines or empty table rows.
-Output in markdown format, with all details, do not include introductory phrases or meta-commentary.
-</GENERAL_INSTRUCTIONS>
+Output in clean markdown format. Avoid repetitive empty lines or empty table rows.
 """
 
 
@@ -242,8 +233,19 @@ class VisionParser:
         return results
 
     def _make_user_message(self, text_content: str) -> str:
-        """Create enhanced user message with text extraction reference."""
-        return f"{self.prompt}\n\nText content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n<text_content>\n{text_content}\n</text_content>"
+        """Create enhanced user message with text extraction reference.
+
+        Only includes the PyMuPDF text reference when actual text was extracted.
+        Sending an empty <text_content> block can confuse some models (e.g. Gemini)
+        and contribute to content filter triggers.
+        """
+        if text_content and text_content.strip():
+            return (
+                f"{self.prompt}\n\n"
+                f"Text content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n"
+                f"<text_content>\n{text_content}\n</text_content>"
+            )
+        return self.prompt
 
     async def _process_page_and_release(
         self,
@@ -432,9 +434,7 @@ class VisionParser:
             # Each task releases its own image when done via _process_page_and_release,
             # so images are freed progressively as API calls return rather than waiting
             # for the entire chunk to finish.
-            task = asyncio.create_task(
-                self._process_page_and_release(img, page_number, page_hash, text_content)
-            )
+            task = asyncio.create_task(self._process_page_and_release(img, page_number, page_hash, text_content))
             tasks.append(task)
 
         # Process all tasks concurrently
@@ -511,9 +511,7 @@ class VisionParser:
             img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
 
             # Each task releases its own image when done via _process_page_and_release
-            task = asyncio.create_task(
-                self._process_page_and_release(img, page_number, page_hash, text_content)
-            )
+            task = asyncio.create_task(self._process_page_and_release(img, page_number, page_hash, text_content))
             tasks.append(task)
 
         # Process all tasks concurrently

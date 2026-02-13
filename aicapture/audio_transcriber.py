@@ -194,7 +194,7 @@ def extract_audio_from_video(
         raise ValueError(f"Unsupported video format: {video_file.suffix}. Supported formats: {SUPPORTED_VIDEO_FORMATS}")
 
     try:
-        from moviepy import VideoFileClip  # type: ignore[import-untyped]
+        from moviepy import VideoFileClip  # type: ignore[import-untyped,import-not-found]
     except ImportError as e:
         raise ImportError(
             "moviepy is required for audio extraction. Install it with: pip install aicapture[video]"
