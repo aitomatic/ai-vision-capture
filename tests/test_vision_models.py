@@ -568,9 +568,7 @@ class TestAzureOpenAIReasoningModels:
         monkeypatch.setenv("AZURE_OPENAI_API_URL", "https://test.openai.azure.com")
 
         # Test GPT-5 models are detected as reasoning models
-        model_gpt5 = AzureOpenAIVisionModel(
-            model="gpt-5", api_key="test_key", api_base="https://test.openai.azure.com"
-        )
+        model_gpt5 = AzureOpenAIVisionModel(model="gpt-5", api_key="test_key", api_base="https://test.openai.azure.com")
         assert model_gpt5.is_reasoning_model is True
 
         model_gpt52 = AzureOpenAIVisionModel(
