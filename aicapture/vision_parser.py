@@ -691,6 +691,8 @@ class VisionParser:
             except Exception as e:
                 logger.error(f"Error processing PDF: {e}")
                 return {}
+            finally:
+                await self.vision_model.aclose()
 
         return asyncio.run(_run())
 
@@ -845,6 +847,8 @@ class VisionParser:
             except Exception as e:
                 logger.error(f"Error processing image: {e}")
                 return {}
+            finally:
+                await self.vision_model.aclose()
 
         return asyncio.run(_run())
 
@@ -856,7 +860,14 @@ class VisionParser:
             page_indexes: Optional list of 0-based page indexes to process (PDF only).
                 If None, all pages are processed.
         """
-        return asyncio.run(self.process_file_async(file_path, page_indexes=page_indexes))
+
+        async def _run() -> Dict:
+            try:
+                return await self.process_file_async(file_path, page_indexes=page_indexes)
+            finally:
+                await self.vision_model.aclose()
+
+        return asyncio.run(_run())
 
     async def process_file_async(self, file_path: str, page_indexes: Optional[List[int]] = None) -> Dict:
         """Process a file asynchronously and return structured content.
@@ -876,7 +887,14 @@ class VisionParser:
 
     def process_folder(self, folder_path: str) -> List[Dict]:
         """Process all PDF and image files in a folder synchronously."""
-        return asyncio.run(self.process_folder_async(folder_path))
+
+        async def _run() -> List[Dict]:
+            try:
+                return await self.process_folder_async(folder_path)
+            finally:
+                await self.vision_model.aclose()
+
+        return asyncio.run(_run())
 
     async def process_folder_async(self, folder_path: str) -> List[Dict]:
         """Process all PDF and image files in a folder asynchronously.

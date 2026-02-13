@@ -248,7 +248,14 @@ class VidCapture:
         Returns:
             String containing the extracted knowledge
         """
-        return asyncio.run(self.capture_async(prompt, images, **kwargs))
+
+        async def _run() -> str:
+            try:
+                return await self.capture_async(prompt, images, **kwargs)
+            finally:
+                await self.vision_model.aclose()
+
+        return asyncio.run(_run())
 
     def _get_cache_key(self, video_path: str, prompt: str) -> Optional[str]:
         """

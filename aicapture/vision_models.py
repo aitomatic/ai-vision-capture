@@ -144,6 +144,21 @@ class VisionModel(ABC):
         #     logger.error("API base is required")
         #     raise ValueError("API base is required")
 
+    async def aclose(self) -> None:
+        """Close the async HTTP client to avoid 'Event loop is closed' warnings.
+
+        Should be called before the event loop shuts down (e.g. at the end of
+        an ``asyncio.run()`` block) so that httpx can clean up its connection
+        pool gracefully instead of relying on garbage-collection after the loop
+        is already closed.
+        """
+        if self._aclient is not None:
+            try:
+                await self._aclient.close()
+            except Exception:
+                pass
+            self._aclient = None
+
     def log_token_usage(self, usage_data: Dict[str, int]) -> None:
         """Log token usage statistics."""
         self.last_token_usage = usage_data
@@ -599,7 +614,7 @@ class GeminiVisionModel(OpenAIVisionModel):
             response.usage.completion_tokens == 0 and response.choices[0].message.content is None
         ):
             logger.warning(
-                f"Gemini content filter triggered (finish_reason={finish_reason}). " f"Retrying with fallback prompt."
+                f"Gemini content filter triggered (finish_reason={finish_reason}). Retrying with fallback prompt."
             )
             # Retry with fallback prompt
             fallback_content = self._prepare_content(image, self.FALLBACK_PROMPT)
@@ -661,7 +676,7 @@ class GeminiVisionModel(OpenAIVisionModel):
             response.usage.completion_tokens == 0 and response.choices[0].message.content is None
         ):
             logger.warning(
-                f"Gemini content filter triggered (finish_reason={finish_reason}). " f"Retrying with fallback prompt."
+                f"Gemini content filter triggered (finish_reason={finish_reason}). Retrying with fallback prompt."
             )
             fallback_content = self._prepare_content(image, self.FALLBACK_PROMPT)
             fallback_message: ChatCompletionUserMessageParam = {
