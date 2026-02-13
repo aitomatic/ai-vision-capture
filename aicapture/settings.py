@@ -77,13 +77,20 @@ class AnthropicVisionConfig(VisionModelConfig):
 
 
 class OpenAIVisionConfig(VisionModelConfig):
-    """Configuration for OpenAI GPT-4 Vision models."""
+    """Configuration for OpenAI GPT-4 Vision models and GPT-5 reasoning models.
+
+    For GPT-5 series reasoning models (gpt-5, gpt-5.1, gpt-5.2):
+    - max_tokens becomes max_completion_tokens
+    - temperature is only supported when reasoning_effort="none"
+    - reasoning_effort options: none, low, medium, high, xhigh (varies by model)
+    """
 
     api_key: str = os.getenv("OPENAI_VISION_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
     model: str = os.getenv("OPENAI_VISION_MODEL", "") or os.getenv("OPENAI_MODEL", "gpt-4.1")
     api_base: str = os.getenv("OPENAI_VISION_BASE_URL", "") or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "5000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
+    reasoning_effort: Optional[str] = os.getenv("OPENAI_REASONING_EFFORT", None)
 
     def __post_init__(self) -> None:
         """Validate OpenAI configuration."""
@@ -104,12 +111,20 @@ class GeminiVisionConfig(VisionModelConfig):
 
 
 class AzureOpenAIVisionConfig(VisionModelConfig):
-    """Configuration for Azure OpenAI Vision models."""
+    """Configuration for Azure OpenAI Vision models and GPT-5 reasoning models.
+
+    Supports both traditional models (GPT-4) and GPT-5 reasoning models.
+    For GPT-5 series reasoning models deployed on Azure:
+    - max_tokens becomes max_completion_tokens
+    - temperature is only supported when reasoning_effort="none"
+    - reasoning_effort options: none, low, medium, high, xhigh (varies by model)
+    """
 
     api_key: str = os.getenv("AZURE_OPENAI_API_KEY", "")
     model: str = os.getenv("AZURE_OPENAI_MODEL", "gpt-4.1")
     api_base: str = os.getenv("AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com")
     api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-11-01-preview")
+    reasoning_effort: Optional[str] = os.getenv("AZURE_OPENAI_REASONING_EFFORT", None)
 
     def __post_init__(self) -> None:
         """Validate Azure OpenAI configuration."""
