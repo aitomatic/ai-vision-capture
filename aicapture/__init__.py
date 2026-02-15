@@ -27,7 +27,7 @@ from aicapture.vision_models import (
 )
 from aicapture.vision_parser import VisionParser
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __author__ = "Aitomatic, Inc."
 __license__ = "Apache License 2.0"
 
