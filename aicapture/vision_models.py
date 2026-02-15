@@ -417,7 +417,17 @@ class AnthropicVisionModel(VisionModel):
 
 
 class OpenAIVisionModel(VisionModel):
-    """Implementation for OpenAI GPT-4 Vision models."""
+    """Implementation for OpenAI GPT-4 Vision models.
+
+    Supports both traditional models (GPT-4) and reasoning models (GPT-5 series).
+    Reasoning models (gpt-5, gpt-5.1, gpt-5.2, etc.) have different parameter requirements:
+    - Use max_completion_tokens instead of max_tokens
+    - Don't support temperature unless reasoning_effort is "none"
+    - Support reasoning_effort parameter (none, low, medium, high, xhigh)
+    """
+
+    # Reasoning model prefixes
+    REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3")
 
     def __init__(
         self,
@@ -434,14 +444,34 @@ class OpenAIVisionModel(VisionModel):
             image_quality=image_quality,
             **kwargs,
         )
-        if "max_tokens" in kwargs:
-            self.max_tokens = kwargs["max_tokens"]
+
+        # Detect if this is a reasoning model
+        self.is_reasoning_model = self._is_reasoning_model(model)
+
+        # Handle max_tokens/max_completion_tokens
+        if "max_completion_tokens" in kwargs:
+            self.max_completion_tokens = kwargs["max_completion_tokens"]
+        elif "max_tokens" in kwargs:
+            self.max_completion_tokens = kwargs["max_tokens"]
         else:
-            self.max_tokens = OpenAIVisionConfig.max_tokens
+            self.max_completion_tokens = OpenAIVisionConfig.max_tokens
+
+        # Handle temperature (only for non-reasoning models or when reasoning_effort="none")
         if "temperature" in kwargs:
             self.temperature = kwargs["temperature"]
         else:
             self.temperature = OpenAIVisionConfig.temperature
+
+        # Handle reasoning_effort parameter (for reasoning models)
+        self.reasoning_effort = kwargs.get("reasoning_effort", None)
+
+        if self.is_reasoning_model:
+            logger.info(f"Using reasoning model: {model} with reasoning_effort={self.reasoning_effort}")
+
+    @staticmethod
+    def _is_reasoning_model(model: str) -> bool:
+        """Check if the model is a reasoning model (GPT-5 series, o1, o3)."""
+        return any(model.startswith(prefix) for prefix in OpenAIVisionModel.REASONING_MODEL_PREFIXES)
 
     @property
     def client(self) -> OpenAI:
@@ -487,13 +517,31 @@ class OpenAIVisionModel(VisionModel):
             "content": content,  # type: ignore
         }
 
-        response = await self.aclient.chat.completions.create(
-            model=self.model,
-            messages=[message],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            stream=kwargs.get("stream", False),
-        )
+        # Build request parameters based on model type
+        request_params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": [message],
+            "stream": kwargs.get("stream", False),
+        }
+
+        # For reasoning models, use different parameter names and skip temperature
+        if self.is_reasoning_model:
+            # Use max_completion_tokens for reasoning models
+            request_params["max_completion_tokens"] = self.max_completion_tokens
+
+            # Add reasoning_effort if specified
+            if self.reasoning_effort is not None:
+                request_params["reasoning_effort"] = self.reasoning_effort
+
+            # Only add temperature if reasoning_effort is "none"
+            if self.reasoning_effort == "none":
+                request_params["temperature"] = self.temperature
+        else:
+            # Traditional models use max_tokens and temperature
+            request_params["max_tokens"] = self.max_completion_tokens
+            request_params["temperature"] = self.temperature
+
+        response = await self.aclient.chat.completions.create(**request_params)
 
         # Log token usage
         usage = {
@@ -513,13 +561,32 @@ class OpenAIVisionModel(VisionModel):
             "role": "user",
             "content": content,  # type: ignore
         }
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[message],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            stream=kwargs.get("stream", False),
-        )
+
+        # Build request parameters based on model type
+        request_params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": [message],
+            "stream": kwargs.get("stream", False),
+        }
+
+        # For reasoning models, use different parameter names and skip temperature
+        if self.is_reasoning_model:
+            # Use max_completion_tokens for reasoning models
+            request_params["max_completion_tokens"] = self.max_completion_tokens
+
+            # Add reasoning_effort if specified
+            if self.reasoning_effort is not None:
+                request_params["reasoning_effort"] = self.reasoning_effort
+
+            # Only add temperature if reasoning_effort is "none"
+            if self.reasoning_effort == "none":
+                request_params["temperature"] = self.temperature
+        else:
+            # Traditional models use max_tokens and temperature
+            request_params["max_tokens"] = self.max_completion_tokens
+            request_params["temperature"] = self.temperature
+
+        response = self.client.chat.completions.create(**request_params)
 
         # Log token usage
         usage = {
@@ -533,13 +600,34 @@ class OpenAIVisionModel(VisionModel):
 
     async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
         """Process text using OpenAI Vision asynchronously."""
-        response = await self.aclient.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=kwargs.get("max_tokens", self.max_tokens),
-            temperature=kwargs.get("temperature", self.temperature),
-            stream=kwargs.get("stream", False),
-        )
+        # Build request parameters based on model type
+        request_params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": kwargs.get("stream", False),
+        }
+
+        # For reasoning models, use different parameter names and skip temperature
+        if self.is_reasoning_model:
+            # Use max_completion_tokens for reasoning models
+            request_params["max_completion_tokens"] = kwargs.get(
+                "max_completion_tokens", kwargs.get("max_tokens", self.max_completion_tokens)
+            )
+
+            # Add reasoning_effort if specified
+            reasoning_effort = kwargs.get("reasoning_effort", self.reasoning_effort)
+            if reasoning_effort is not None:
+                request_params["reasoning_effort"] = reasoning_effort
+
+            # Only add temperature if reasoning_effort is "none"
+            if reasoning_effort == "none":
+                request_params["temperature"] = kwargs.get("temperature", self.temperature)
+        else:
+            # Traditional models use max_tokens and temperature
+            request_params["max_tokens"] = kwargs.get("max_tokens", self.max_completion_tokens)
+            request_params["temperature"] = kwargs.get("temperature", self.temperature)
+
+        response = await self.aclient.chat.completions.create(**request_params)
 
         # Log token usage
         usage = {
@@ -595,23 +683,24 @@ class GeminiVisionModel(OpenAIVisionModel):
         response = await self.aclient.chat.completions.create(
             model=self.model,
             messages=[message],
-            max_tokens=self.max_tokens,
+            max_tokens=self.max_completion_tokens,
             temperature=self.temperature,
             stream=kwargs.get("stream", False),
         )
 
         # Log token usage
-        usage = {
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }
-        self.log_token_usage(usage)
+        if response.usage:
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            self.log_token_usage(usage)
 
         # Check for Gemini content filter (recitation block)
         finish_reason = response.choices[0].finish_reason or ""
         if "content_filter" in finish_reason or (
-            response.usage.completion_tokens == 0 and response.choices[0].message.content is None
+            response.usage and response.usage.completion_tokens == 0 and response.choices[0].message.content is None
         ):
             logger.warning(
                 f"Gemini content filter triggered (finish_reason={finish_reason}). Retrying with fallback prompt."
@@ -625,17 +714,18 @@ class GeminiVisionModel(OpenAIVisionModel):
             response = await self.aclient.chat.completions.create(
                 model=self.model,
                 messages=[fallback_message],
-                max_tokens=self.max_tokens,
+                max_tokens=self.max_completion_tokens,
                 temperature=self.temperature,
                 stream=kwargs.get("stream", False),
             )
             # Log retry token usage
-            retry_usage = {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
-            }
-            self.log_token_usage(retry_usage)
+            if response.usage:
+                retry_usage = {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
+                self.log_token_usage(retry_usage)
 
             retry_finish = response.choices[0].finish_reason or ""
             if "content_filter" in retry_finish:
@@ -657,23 +747,24 @@ class GeminiVisionModel(OpenAIVisionModel):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[message],
-            max_tokens=self.max_tokens,
+            max_tokens=self.max_completion_tokens,
             temperature=self.temperature,
             stream=kwargs.get("stream", False),
         )
 
         # Log token usage
-        usage = {
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }
-        self.log_token_usage(usage)
+        if response.usage:
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            self.log_token_usage(usage)
 
         # Check for Gemini content filter (recitation block)
         finish_reason = response.choices[0].finish_reason or ""
         if "content_filter" in finish_reason or (
-            response.usage.completion_tokens == 0 and response.choices[0].message.content is None
+            response.usage and response.usage.completion_tokens == 0 and response.choices[0].message.content is None
         ):
             logger.warning(
                 f"Gemini content filter triggered (finish_reason={finish_reason}). Retrying with fallback prompt."
@@ -686,16 +777,17 @@ class GeminiVisionModel(OpenAIVisionModel):
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[fallback_message],
-                max_tokens=self.max_tokens,
+                max_tokens=self.max_completion_tokens,
                 temperature=self.temperature,
                 stream=kwargs.get("stream", False),
             )
-            retry_usage = {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
-            }
-            self.log_token_usage(retry_usage)
+            if response.usage:
+                retry_usage = {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
+                self.log_token_usage(retry_usage)
 
             retry_finish = response.choices[0].finish_reason or ""
             if "content_filter" in retry_finish:
