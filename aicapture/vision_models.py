@@ -26,18 +26,34 @@ from aicapture.settings import (
     mask_sensitive_string,
 )
 
+# Type aliases for Responses API content items
+ResponsesInputText = Dict[str, str]
+ResponsesInputImage = Dict[str, str]
+ResponsesContentItem = Union[ResponsesInputText, ResponsesInputImage]
+
 
 def create_default_vision_model() -> VisionModel:
-    """Create a vision model instance based on environment configuration."""
+    """Create a vision model instance based on environment configuration.
+
+    When OPENAI_USE_RESPONSES_API=true or AZURE_OPENAI_USE_RESPONSES_API=true,
+    the corresponding Responses API model class will be used instead of the
+    Chat Completions class.
+    """
     logger.info(f"Creating vision model for provider: {USE_VISION}")
     try:
         if USE_VISION == VisionModelProvider.claude:
             return AnthropicVisionModel()
         elif USE_VISION == VisionModelProvider.openai:
+            if OpenAIVisionConfig.use_responses_api:
+                logger.info("Using OpenAI Responses API")
+                return OpenAIResponsesVisionModel()
             return OpenAIVisionModel()
         elif USE_VISION == VisionModelProvider.gemini:
             return GeminiVisionModel()
         elif USE_VISION == VisionModelProvider.azure_openai:
+            if AzureOpenAIVisionConfig.use_responses_api:
+                logger.info("Using Azure OpenAI Responses API")
+                return AzureOpenAIResponsesVisionModel()
             return AzureOpenAIVisionModel()
         elif USE_VISION == VisionModelProvider.anthropic_bedrock:
             return AnthropicAWSBedrockVisionModel()
@@ -835,6 +851,245 @@ class AzureOpenAIVisionModel(OpenAIVisionModel):
                 azure_endpoint=self.api_base,  # type: ignore
             )
 
+        return cast(AsyncAzureOpenAI, self._aclient)
+
+
+class OpenAIResponsesVisionModel(VisionModel):
+    """OpenAI Vision using the Responses API.
+
+    The Responses API is OpenAI's recommended API for new projects, replacing
+    Chat Completions. Key differences from OpenAIVisionModel:
+
+    - Uses ``client.responses.create()`` instead of ``client.chat.completions.create()``
+    - Content types: ``input_text`` / ``input_image`` instead of ``text`` / ``image_url``
+    - Parameter names: ``input`` instead of ``messages``, ``instructions`` instead of
+      system message, ``max_output_tokens`` instead of ``max_tokens``
+    - Response access: ``response.output_text`` instead of ``response.choices[0].message.content``
+    - Supports stateful conversations via ``previous_response_id``
+    - Supports native PDF input via ``input_file`` content type
+    - For reasoning models, uses ``reasoning={"effort": ...}`` instead of ``reasoning_effort``
+
+    Set ``store=False`` (default) to prevent OpenAI from retaining response data.
+    Pass ``previous_response_id`` in kwargs to chain stateful conversations.
+    """
+
+    REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3")
+
+    def __init__(
+        self,
+        model: str = OpenAIVisionConfig.model,
+        api_key: str = OpenAIVisionConfig.api_key,
+        api_base: str = OpenAIVisionConfig.api_base,
+        image_quality: str = ImageQuality.DEFAULT,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            image_quality=image_quality,
+            **kwargs,
+        )
+
+        self.is_reasoning_model = self._is_reasoning_model(model)
+
+        if "max_output_tokens" in kwargs:
+            self.max_output_tokens = kwargs["max_output_tokens"]
+        elif "max_completion_tokens" in kwargs:
+            self.max_output_tokens = kwargs["max_completion_tokens"]
+        elif "max_tokens" in kwargs:
+            self.max_output_tokens = kwargs["max_tokens"]
+        else:
+            self.max_output_tokens = OpenAIVisionConfig.max_tokens
+
+        if "temperature" in kwargs:
+            self.temperature = kwargs["temperature"]
+        else:
+            self.temperature = OpenAIVisionConfig.temperature
+
+        self.reasoning_effort = kwargs.get("reasoning_effort", None)
+
+        # Whether to store responses server-side (default False for stateless use)
+        self.store = kwargs.get("store", False)
+
+        if self.is_reasoning_model:
+            logger.info(f"Using Responses API reasoning model: {model} with reasoning_effort={self.reasoning_effort}")
+
+    @staticmethod
+    def _is_reasoning_model(model: str) -> bool:
+        """Check if the model is a reasoning model (GPT-5 series, o1, o3)."""
+        return any(model.startswith(prefix) for prefix in OpenAIResponsesVisionModel.REASONING_MODEL_PREFIXES)
+
+    @property
+    def client(self) -> OpenAI:
+        if self._client is None:
+            self._client = OpenAI(api_key=self.api_key, base_url=self.api_base)
+        return cast(OpenAI, self._client)
+
+    @property
+    def aclient(self) -> AsyncOpenAI:
+        if self._aclient is None:
+            self._aclient = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
+        return cast(AsyncOpenAI, self._aclient)
+
+    def _prepare_content(self, image: Union[Image.Image, List[Image.Image]], prompt: str) -> List[ResponsesContentItem]:
+        """Prepare content for Responses API using input_text / input_image types."""
+        content: List[ResponsesContentItem] = []
+        images = [image] if isinstance(image, Image.Image) else image
+
+        for img in images:
+            base64_image, _ = self.convert_image_to_base64(img)
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": f"data:image/jpeg;base64,{base64_image}",
+                    "detail": self.image_quality,
+                }
+            )
+
+        content.append({"type": "input_text", "text": prompt})
+        return content
+
+    def _build_request_params(self, **kwargs: Any) -> Dict[str, Any]:
+        """Build common request parameters for the Responses API."""
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "store": kwargs.get("store", self.store),
+        }
+
+        # Instructions (system prompt)
+        if "instructions" in kwargs and kwargs["instructions"] is not None:
+            params["instructions"] = kwargs["instructions"]
+
+        # Stateful conversation chaining
+        if "previous_response_id" in kwargs and kwargs["previous_response_id"] is not None:
+            params["previous_response_id"] = kwargs["previous_response_id"]
+
+        # Reasoning models
+        if self.is_reasoning_model:
+            params["max_output_tokens"] = self.max_output_tokens
+
+            effort = kwargs.get("reasoning_effort", self.reasoning_effort)
+            if effort is not None:
+                params["reasoning"] = {"effort": effort}
+
+                if effort == "none":
+                    params["temperature"] = kwargs.get("temperature", self.temperature)
+        else:
+            params["max_output_tokens"] = self.max_output_tokens
+            params["temperature"] = kwargs.get("temperature", self.temperature)
+
+        return params
+
+    def _extract_usage(self, response: Any) -> Dict[str, int]:
+        """Extract and log token usage from a Responses API response."""
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+        self.log_token_usage(usage)
+        return usage
+
+    async def process_image_async(
+        self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any
+    ) -> str:
+        """Process image(s) using OpenAI Responses API asynchronously."""
+        content = self._prepare_content(image, prompt)
+
+        request_params = self._build_request_params(**kwargs)
+        request_params["input"] = [{"role": "user", "content": content}]
+
+        response = await self.aclient.responses.create(**request_params)
+        self._extract_usage(response)
+
+        return response.output_text or ""
+
+    def process_image(self, image: Union[Image.Image, List[Image.Image]], prompt: str, **kwargs: Any) -> str:
+        """Process image(s) using OpenAI Responses API synchronously."""
+        content = self._prepare_content(image, prompt)
+
+        request_params = self._build_request_params(**kwargs)
+        request_params["input"] = [{"role": "user", "content": content}]
+
+        response = self.client.responses.create(**request_params)
+        self._extract_usage(response)
+
+        return response.output_text or ""
+
+    async def process_text_async(self, messages: List[Any], **kwargs: Any) -> str:
+        """Process text using OpenAI Responses API asynchronously.
+
+        Converts Chat Completions-style messages to Responses API input items.
+        System messages are extracted and passed as ``instructions``.
+        """
+        instructions = None
+        input_items: List[Any] = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            if role == "system":
+                instructions = msg.get("content", "")
+            else:
+                input_items.append(msg)
+
+        request_params = self._build_request_params(**kwargs)
+        request_params["input"] = input_items
+        if instructions and "instructions" not in kwargs:
+            request_params["instructions"] = instructions
+
+        response = await self.aclient.responses.create(**request_params)
+        self._extract_usage(response)
+
+        return response.output_text or ""
+
+
+class AzureOpenAIResponsesVisionModel(OpenAIResponsesVisionModel):
+    """Azure OpenAI Vision using the Responses API.
+
+    Uses the Azure OpenAI v1 endpoint (``/openai/v1/responses``).
+    Inherits all Responses API behavior from OpenAIResponsesVisionModel,
+    but creates Azure-specific clients.
+
+    Note: Azure's Responses API has some limitations vs. direct OpenAI:
+    - Web search tool is not supported (use Bing Grounding instead)
+    - PDF file upload with purpose="user_data" is not supported
+    """
+
+    def __init__(
+        self,
+        model: str = AzureOpenAIVisionConfig.model,
+        api_key: str = AzureOpenAIVisionConfig.api_key,
+        api_base: str = AzureOpenAIVisionConfig.api_base,
+        image_quality: str = ImageQuality.DEFAULT,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            image_quality=image_quality,
+            **kwargs,
+        )
+        self.api_version = AzureOpenAIVisionConfig.api_version
+
+    @property
+    def client(self) -> AzureOpenAI:
+        if self._client is None:
+            self._client = AzureOpenAI(
+                api_key=self.api_key,
+                api_version=self.api_version,
+                azure_endpoint=self.api_base,  # type: ignore
+            )
+        return cast(AzureOpenAI, self._client)
+
+    @property
+    def aclient(self) -> AsyncAzureOpenAI:
+        if self._aclient is None:
+            self._aclient = AsyncAzureOpenAI(
+                api_key=self.api_key,
+                api_version=self.api_version,
+                azure_endpoint=self.api_base,  # type: ignore
+            )
         return cast(AsyncAzureOpenAI, self._aclient)
 
 

@@ -16,8 +16,10 @@ from aicapture.vid_capture import VidCapture, VideoConfig, VideoValidationError
 from aicapture.vision_models import (
     AnthropicAWSBedrockVisionModel,
     AnthropicVisionModel,
+    AzureOpenAIResponsesVisionModel,
     AzureOpenAIVisionModel,
     GeminiVisionModel,
+    OpenAIResponsesVisionModel,
     OpenAIVisionModel,
     VisionModel,
     create_default_vision_model,
@@ -35,10 +37,12 @@ __all__ = [
     # Vision models
     "VisionModel",
     "OpenAIVisionModel",
+    "OpenAIResponsesVisionModel",
     "GeminiVisionModel",
     "AnthropicVisionModel",
     "AnthropicAWSBedrockVisionModel",
     "AzureOpenAIVisionModel",
+    "AzureOpenAIResponsesVisionModel",
     # Settings
     "ImageQuality",
     # Cache utilities
