@@ -9,7 +9,9 @@ from pytest import MonkeyPatch
 
 from aicapture.vision_models import (
     AnthropicVisionModel,
+    AzureOpenAIResponsesVisionModel,
     AzureOpenAIVisionModel,
+    OpenAIResponsesVisionModel,
     OpenAIVisionModel,
     VisionModel,
     create_default_vision_model,
@@ -734,6 +736,393 @@ class TestAzureOpenAIReasoningModels:
             assert "api_key" in call_kwargs
             assert "api_version" in call_kwargs
             assert "azure_endpoint" in call_kwargs
+
+
+class TestOpenAIResponsesVisionModel:
+    """Test cases for OpenAIResponsesVisionModel (Responses API)."""
+
+    def test_init_defaults(self, monkeypatch: MonkeyPatch) -> None:
+        """Test initialization with defaults."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(api_key="test_key")
+        assert model.api_key == "test_key"
+        assert model.store is False  # Default: don't store
+
+    def test_init_custom_params(self, monkeypatch: MonkeyPatch) -> None:
+        """Test initialization with custom parameters."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(
+            model="gpt-4.1",
+            api_key="custom_key",
+            max_output_tokens=8000,
+            temperature=0.5,
+            store=True,
+        )
+        assert model.model == "gpt-4.1"
+        assert model.api_key == "custom_key"
+        assert model.max_output_tokens == 8000
+        assert model.temperature == 0.5
+        assert model.store is True
+        assert model.is_reasoning_model is False
+
+    def test_reasoning_model_detection(self, monkeypatch: MonkeyPatch) -> None:
+        """Test reasoning model detection for GPT-5/o1/o3."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        assert OpenAIResponsesVisionModel(model="gpt-5").is_reasoning_model is True
+        assert OpenAIResponsesVisionModel(model="gpt-5.2").is_reasoning_model is True
+        assert OpenAIResponsesVisionModel(model="o1").is_reasoning_model is True
+        assert OpenAIResponsesVisionModel(model="o3-mini").is_reasoning_model is True
+        assert OpenAIResponsesVisionModel(model="gpt-4.1").is_reasoning_model is False
+
+    def test_prepare_content_format(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that _prepare_content uses Responses API content types."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel()
+        test_image = Image.new("RGB", (10, 10), color="red")
+        content = model._prepare_content(test_image, "Describe this")
+
+        # Should have input_image + input_text
+        assert len(content) == 2
+        assert content[0]["type"] == "input_image"
+        assert "image_url" in content[0]
+        assert content[0]["image_url"].startswith("data:image/jpeg;base64,")
+        assert content[1]["type"] == "input_text"
+        assert content[1]["text"] == "Describe this"
+
+    def test_prepare_content_multiple_images(self, monkeypatch: MonkeyPatch) -> None:
+        """Test _prepare_content with multiple images."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel()
+        images = [Image.new("RGB", (10, 10), color="red"), Image.new("RGB", (10, 10), color="blue")]
+        content = model._prepare_content(images, "Compare these")
+
+        assert len(content) == 3  # 2 images + 1 text
+        assert content[0]["type"] == "input_image"
+        assert content[1]["type"] == "input_image"
+        assert content[2]["type"] == "input_text"
+
+    def test_build_request_params_traditional_model(self, monkeypatch: MonkeyPatch) -> None:
+        """Test request params for non-reasoning model."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(model="gpt-4.1", temperature=0.3)
+        params = model._build_request_params()
+
+        assert params["model"] == "gpt-4.1"
+        assert params["temperature"] == 0.3
+        assert params["store"] is False
+        assert "reasoning" not in params
+
+    def test_build_request_params_reasoning_model(self, monkeypatch: MonkeyPatch) -> None:
+        """Test request params for reasoning model with effort."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(model="gpt-5.2", reasoning_effort="high")
+        params = model._build_request_params()
+
+        assert params["model"] == "gpt-5.2"
+        assert params["reasoning"] == {"effort": "high"}
+        assert "temperature" not in params  # Not included for reasoning models
+
+    def test_build_request_params_reasoning_none_includes_temperature(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that temperature is included when reasoning_effort='none'."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(model="gpt-5.2", reasoning_effort="none", temperature=0.7)
+        params = model._build_request_params()
+
+        assert params["reasoning"] == {"effort": "none"}
+        assert params["temperature"] == 0.7
+
+    def test_build_request_params_with_instructions(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that instructions kwarg is passed through."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(model="gpt-4.1")
+        params = model._build_request_params(instructions="You are a helpful assistant.")
+
+        assert params["instructions"] == "You are a helpful assistant."
+
+    def test_build_request_params_with_previous_response_id(self, monkeypatch: MonkeyPatch) -> None:
+        """Test stateful conversation chaining via previous_response_id."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        model = OpenAIResponsesVisionModel(model="gpt-4.1")
+        params = model._build_request_params(previous_response_id="resp_abc123")
+
+        assert params["previous_response_id"] == "resp_abc123"
+
+    @pytest.mark.asyncio
+    async def test_process_image_async(self, monkeypatch: MonkeyPatch) -> None:
+        """Test async image processing calls responses.create."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        mock_client = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.output_text = "Responses API output"
+        mock_response.usage = AsyncMock()
+        mock_response.usage.input_tokens = 200
+        mock_response.usage.output_tokens = 80
+        mock_response.usage.total_tokens = 280
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.AsyncOpenAI", return_value=mock_client):
+            model = OpenAIResponsesVisionModel(model="gpt-4.1")
+            model._aclient = mock_client
+
+            test_image = Image.new("RGB", (100, 100), color="green")
+            result = await model.process_image_async(test_image, "Analyze this image")
+
+            assert result == "Responses API output"
+            mock_client.responses.create.assert_called_once()
+
+            call_kwargs = mock_client.responses.create.call_args[1]
+            assert call_kwargs["model"] == "gpt-4.1"
+            assert call_kwargs["store"] is False
+            assert len(call_kwargs["input"]) == 1
+            assert call_kwargs["input"][0]["role"] == "user"
+            # Content should use input_image and input_text
+            content = call_kwargs["input"][0]["content"]
+            assert content[0]["type"] == "input_image"
+            assert content[1]["type"] == "input_text"
+
+    def test_process_image_sync(self, monkeypatch: MonkeyPatch) -> None:
+        """Test sync image processing calls responses.create."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.output_text = "Sync responses output"
+        mock_response.usage = Mock()
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 50
+        mock_response.usage.total_tokens = 150
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.OpenAI", return_value=mock_client):
+            model = OpenAIResponsesVisionModel(model="gpt-4.1")
+            model._client = mock_client
+
+            test_image = Image.new("RGB", (100, 100), color="blue")
+            result = model.process_image(test_image, "What is this?")
+
+            assert result == "Sync responses output"
+            mock_client.responses.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_text_async_extracts_system_as_instructions(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that system messages are converted to instructions parameter."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        mock_client = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.output_text = "Text response"
+        mock_response.usage = AsyncMock()
+        mock_response.usage.input_tokens = 50
+        mock_response.usage.output_tokens = 25
+        mock_response.usage.total_tokens = 75
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.AsyncOpenAI", return_value=mock_client):
+            model = OpenAIResponsesVisionModel(model="gpt-4.1")
+            model._aclient = mock_client
+
+            messages = [
+                {"role": "system", "content": "You are a document parser."},
+                {"role": "user", "content": "Parse this document."},
+            ]
+            result = await model.process_text_async(messages)
+
+            assert result == "Text response"
+            call_kwargs = mock_client.responses.create.call_args[1]
+            assert call_kwargs["instructions"] == "You are a document parser."
+            # System message should be excluded from input
+            assert len(call_kwargs["input"]) == 1
+            assert call_kwargs["input"][0]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_process_image_async_reasoning_model(self, monkeypatch: MonkeyPatch) -> None:
+        """Test Responses API with reasoning model parameters."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        mock_client = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.output_text = "GPT-5 responses output"
+        mock_response.usage = AsyncMock()
+        mock_response.usage.input_tokens = 200
+        mock_response.usage.output_tokens = 100
+        mock_response.usage.total_tokens = 300
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.AsyncOpenAI", return_value=mock_client):
+            model = OpenAIResponsesVisionModel(model="gpt-5.2", reasoning_effort="medium", max_output_tokens=4000)
+            model._aclient = mock_client
+
+            test_image = Image.new("RGB", (100, 100), color="red")
+            result = await model.process_image_async(test_image, "Analyze")
+
+            assert result == "GPT-5 responses output"
+            call_kwargs = mock_client.responses.create.call_args[1]
+            assert call_kwargs["model"] == "gpt-5.2"
+            assert call_kwargs["reasoning"] == {"effort": "medium"}
+            assert call_kwargs["max_output_tokens"] == 4000
+            assert "temperature" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_process_image_async_with_previous_response_id(self, monkeypatch: MonkeyPatch) -> None:
+        """Test stateful conversation chaining."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        mock_client = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.output_text = "Stateful response"
+        mock_response.usage = AsyncMock()
+        mock_response.usage.input_tokens = 50
+        mock_response.usage.output_tokens = 30
+        mock_response.usage.total_tokens = 80
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.AsyncOpenAI", return_value=mock_client):
+            model = OpenAIResponsesVisionModel(model="gpt-4.1")
+            model._aclient = mock_client
+
+            test_image = Image.new("RGB", (100, 100), color="green")
+            result = await model.process_image_async(test_image, "Follow up", previous_response_id="resp_abc123")
+
+            assert result == "Stateful response"
+            call_kwargs = mock_client.responses.create.call_args[1]
+            assert call_kwargs["previous_response_id"] == "resp_abc123"
+
+
+class TestAzureOpenAIResponsesVisionModel:
+    """Test cases for AzureOpenAIResponsesVisionModel."""
+
+    def test_init(self, monkeypatch: MonkeyPatch) -> None:
+        """Test Azure Responses model initialization."""
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
+        monkeypatch.setenv("AZURE_OPENAI_API_URL", "https://test.openai.azure.com")
+
+        model = AzureOpenAIResponsesVisionModel(
+            model="gpt-4.1",
+            api_key="test_key",
+            api_base="https://test.openai.azure.com",
+        )
+        assert model.model == "gpt-4.1"
+        assert model.api_version  # Should have API version
+        assert model.store is False
+
+    def test_inherits_reasoning_detection(self, monkeypatch: MonkeyPatch) -> None:
+        """Test reasoning model detection is inherited."""
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
+        monkeypatch.setenv("AZURE_OPENAI_API_URL", "https://test.openai.azure.com")
+
+        model_gpt5 = AzureOpenAIResponsesVisionModel(
+            model="gpt-5.2", api_key="test_key", api_base="https://test.openai.azure.com"
+        )
+        assert model_gpt5.is_reasoning_model is True
+
+        model_gpt4 = AzureOpenAIResponsesVisionModel(
+            model="gpt-4.1", api_key="test_key", api_base="https://test.openai.azure.com"
+        )
+        assert model_gpt4.is_reasoning_model is False
+
+    def test_azure_client_creation(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that Azure clients are created with correct parameters."""
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
+        monkeypatch.setenv("AZURE_OPENAI_API_URL", "https://test.openai.azure.com")
+
+        with patch("aicapture.vision_models.AzureOpenAI") as mock_azure_client:
+            model = AzureOpenAIResponsesVisionModel(
+                model="gpt-4.1", api_key="test_key", api_base="https://test.openai.azure.com"
+            )
+            _ = model.client
+
+            mock_azure_client.assert_called_once()
+            call_kwargs = mock_azure_client.call_args[1]
+            assert "api_key" in call_kwargs
+            assert "api_version" in call_kwargs
+            assert "azure_endpoint" in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_process_image_async(self, monkeypatch: MonkeyPatch) -> None:
+        """Test Azure Responses API image processing."""
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
+        monkeypatch.setenv("AZURE_OPENAI_API_URL", "https://test.openai.azure.com")
+
+        mock_client = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.output_text = "Azure Responses API output"
+        mock_response.usage = AsyncMock()
+        mock_response.usage.input_tokens = 200
+        mock_response.usage.output_tokens = 80
+        mock_response.usage.total_tokens = 280
+        mock_client.responses.create.return_value = mock_response
+
+        with patch("aicapture.vision_models.AsyncAzureOpenAI", return_value=mock_client):
+            model = AzureOpenAIResponsesVisionModel(
+                model="gpt-4.1", api_key="test_key", api_base="https://test.openai.azure.com"
+            )
+            model._aclient = mock_client
+
+            test_image = Image.new("RGB", (100, 100), color="blue")
+            result = await model.process_image_async(test_image, "Analyze")
+
+            assert result == "Azure Responses API output"
+            mock_client.responses.create.assert_called_once()
+
+            call_kwargs = mock_client.responses.create.call_args[1]
+            assert call_kwargs["model"] == "gpt-4.1"
+            content = call_kwargs["input"][0]["content"]
+            assert content[0]["type"] == "input_image"
+            assert content[1]["type"] == "input_text"
+
+
+class TestCreateDefaultVisionModelResponses:
+    """Test that create_default_vision_model selects Responses API models when configured."""
+
+    def test_openai_responses_api(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that Responses API model is selected when env var is set."""
+        with patch("aicapture.vision_models.USE_VISION", "openai"):
+            with patch("aicapture.settings.OpenAIVisionConfig") as mock_config:
+                mock_config.use_responses_api = True
+                with patch("aicapture.vision_models.OpenAIVisionConfig", mock_config):
+                    with patch("aicapture.vision_models.OpenAIResponsesVisionModel") as mock_model:
+                        mock_instance = Mock()
+                        mock_model.return_value = mock_instance
+                        result = create_default_vision_model()
+                        mock_model.assert_called_once()
+                        assert result == mock_instance
+
+    def test_openai_chat_completions_default(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that Chat Completions model is used when env var is not set."""
+        with patch("aicapture.vision_models.USE_VISION", "openai"):
+            with patch("aicapture.settings.OpenAIVisionConfig") as mock_config:
+                mock_config.use_responses_api = False
+                with patch("aicapture.vision_models.OpenAIVisionConfig", mock_config):
+                    with patch("aicapture.vision_models.OpenAIVisionModel") as mock_model:
+                        mock_instance = Mock()
+                        mock_model.return_value = mock_instance
+                        result = create_default_vision_model()
+                        mock_model.assert_called_once()
+                        assert result == mock_instance
+
+    def test_azure_responses_api(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that Azure Responses API model is selected when env var is set."""
+        with patch("aicapture.vision_models.USE_VISION", "azure-openai"):
+            with patch("aicapture.settings.AzureOpenAIVisionConfig") as mock_config:
+                mock_config.use_responses_api = True
+                with patch("aicapture.vision_models.AzureOpenAIVisionConfig", mock_config):
+                    with patch("aicapture.vision_models.AzureOpenAIResponsesVisionModel") as mock_model:
+                        mock_instance = Mock()
+                        mock_model.return_value = mock_instance
+                        result = create_default_vision_model()
+                        mock_model.assert_called_once()
+                        assert result == mock_instance
 
 
 if __name__ == "__main__":

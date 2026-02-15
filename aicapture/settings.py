@@ -91,6 +91,7 @@ class OpenAIVisionConfig(VisionModelConfig):
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "5000"))
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
     reasoning_effort: Optional[str] = os.getenv("OPENAI_REASONING_EFFORT", None)
+    use_responses_api: bool = os.getenv("OPENAI_USE_RESPONSES_API", "false").lower() == "true"
 
     def __post_init__(self) -> None:
         """Validate OpenAI configuration."""
@@ -125,6 +126,7 @@ class AzureOpenAIVisionConfig(VisionModelConfig):
     api_base: str = os.getenv("AZURE_OPENAI_API_URL", "https://aitomaticjapaneast.openai.azure.com")
     api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-11-01-preview")
     reasoning_effort: Optional[str] = os.getenv("AZURE_OPENAI_REASONING_EFFORT", None)
+    use_responses_api: bool = os.getenv("AZURE_OPENAI_USE_RESPONSES_API", "false").lower() == "true"
 
     def __post_init__(self) -> None:
         """Validate Azure OpenAI configuration."""
