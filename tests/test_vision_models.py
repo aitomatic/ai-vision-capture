@@ -141,7 +141,7 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
 
-        with patch("aicapture.vision_models.USE_VISION", "auto"):
+        with patch("aicapture.vision_models.USE_VISION", ""):
             with patch("aicapture.vision_models.GeminiVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
@@ -157,7 +157,7 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
 
-        with patch("aicapture.vision_models.USE_VISION", "auto"):
+        with patch("aicapture.vision_models.USE_VISION", ""):
             with patch("aicapture.vision_models.OpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
@@ -174,7 +174,7 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_azure_key")
 
-        with patch("aicapture.vision_models.USE_VISION", "auto"):
+        with patch("aicapture.vision_models.USE_VISION", ""):
             with patch("aicapture.vision_models.AzureOpenAIVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
@@ -191,7 +191,7 @@ class TestCreateDefaultVisionModel:
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test_anthropic_key")
 
-        with patch("aicapture.vision_models.USE_VISION", "auto"):
+        with patch("aicapture.vision_models.USE_VISION", ""):
             with patch("aicapture.vision_models.AnthropicVisionModel") as mock_model:
                 mock_instance = Mock()
                 mock_model.return_value = mock_instance
@@ -224,6 +224,24 @@ class TestIsVisionModelInstalled:
     def test_unknown_model(self) -> None:
         """Test handling of unknown model type."""
         with patch("aicapture.vision_models.USE_VISION", "random_unknown_model"):
+            result = is_vision_model_installed()
+            assert result is False
+
+    def test_auto_detect_with_api_key(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that auto-detect reports installed when API keys exist."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+        with patch("aicapture.vision_models.USE_VISION", ""):
+            result = is_vision_model_installed()
+            assert result is True
+
+    def test_auto_detect_without_api_key(self, monkeypatch: MonkeyPatch) -> None:
+        """Test that auto-detect reports not installed when no API keys exist."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_VISION_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with patch("aicapture.vision_models.USE_VISION", ""):
             result = is_vision_model_installed()
             assert result is False
 

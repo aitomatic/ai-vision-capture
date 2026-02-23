@@ -361,6 +361,7 @@ class TestEnvironmentVariableIntegration:
         # Test that USE_VISION is imported and has a value
         assert isinstance(USE_VISION, str)
         assert USE_VISION in [
+            "",
             "openai",
             "claude",
             "gemini",

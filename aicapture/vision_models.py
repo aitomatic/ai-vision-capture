@@ -39,7 +39,10 @@ def create_default_vision_model() -> VisionModel:
     the corresponding Responses API model class will be used instead of the
     Chat Completions class.
     """
-    logger.info(f"Creating vision model for provider: {USE_VISION}")
+    if USE_VISION:
+        logger.info(f"Creating vision model for provider: {USE_VISION}")
+    else:
+        logger.info("No USE_VISION set, auto-detecting based on available API keys...")
     try:
         if USE_VISION == VisionModelProvider.claude:
             return AnthropicVisionModel()
@@ -65,14 +68,24 @@ def create_default_vision_model() -> VisionModel:
 
 
 def is_vision_model_installed() -> bool:
-    """Check if a vision model is installed."""
-    return USE_VISION in [
+    """Check if a vision model is installed (explicit provider or auto-detect with available keys)."""
+    if USE_VISION in [
         VisionModelProvider.claude,
         VisionModelProvider.openai,
         VisionModelProvider.gemini,
         VisionModelProvider.azure_openai,
         VisionModelProvider.anthropic_bedrock,
-    ]
+    ]:
+        return True
+    if not USE_VISION:
+        return bool(
+            os.getenv("GEMINI_API_KEY")
+            or os.getenv("OPENAI_VISION_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("AZURE_OPENAI_API_KEY")
+            or os.getenv("ANTHROPIC_API_KEY")
+        )
+    return False
 
 
 def AutoDetectVisionModel() -> VisionModel:

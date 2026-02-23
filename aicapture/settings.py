@@ -37,7 +37,8 @@ class VisionModelProvider:
 
 
 # Default vision model configuration
-USE_VISION = os.getenv("USE_VISION", VisionModelProvider.openai).lower()
+# When USE_VISION is not set, auto-detection selects a provider based on available API keys
+USE_VISION = os.getenv("USE_VISION", "").lower()
 MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "20"))
 
 
