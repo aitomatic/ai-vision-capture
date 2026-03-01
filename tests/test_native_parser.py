@@ -1,6 +1,7 @@
 """Tests for NativePDFParser — native PDF text extraction with underline detection."""
 
 import pytest
+
 from aicapture.native_parser import NativePDFParser
 
 
