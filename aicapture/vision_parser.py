@@ -231,19 +231,21 @@ class VisionParser:
         results = []
         with fitz.open(pdf_path) as doc:
             for page_idx, page in enumerate(doc):
-                # Extract plain text (for hashing — must stay stable for cache keys)
-                text = page.get_text()
+                # Use page.get_text() for hashing — this must stay stable across
+                # releases to avoid invalidating existing caches.
+                raw_text = page.get_text()
 
-                # Extract formatting-annotated text with <underline> tags
-                annotated_text = extract_page_with_formatting(page)
+                # Extract formatting-annotated text with <underline> tags.
+                # This calls get_text("dict") internally for span-level analysis.
+                annotated_text, _plain = extract_page_with_formatting(page)
 
-                # Calculate page hash based on plain text (not annotated, for cache stability)
+                # Calculate page hash based on raw text (not annotated, for cache stability)
                 page_number = page_idx + 1
-                page_text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+                page_text_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()[:16]
                 page_hash = f"p{page_number}_{page_text_hash}"
 
                 results.append({
-                    "text": text,
+                    "text": raw_text,
                     "annotated_text": annotated_text,
                     "hash": page_hash,
                     "page_number": page_number,
@@ -454,7 +456,7 @@ class VisionParser:
             # Get page info with text and hash
             page_info = page_extractions[page_idx]
             page_hash = page_info["hash"]
-            text_content = page_info.get("annotated_text", page_info["text"])
+            text_content = page_info["annotated_text"]
 
             # Get the page image from cache or generate it
             img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
@@ -533,7 +535,7 @@ class VisionParser:
             # Get page info with text and hash
             page_info = page_extractions[page_idx]
             page_hash = page_info["hash"]
-            text_content = page_info.get("annotated_text", page_info["text"])
+            text_content = page_info["annotated_text"]
 
             # Get the page image from cache or generate it
             img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
