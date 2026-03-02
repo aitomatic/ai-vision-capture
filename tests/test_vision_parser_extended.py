@@ -254,6 +254,7 @@ class TestVisionParserPDFProcessing:
                     {
                         "hash": "test_hash_123",
                         "text": "Test page content",
+                        "annotated_text": "Test page content",
                         "word_count": 10,
                     }
                 ],
@@ -306,7 +307,7 @@ class TestVisionParserPDFProcessing:
                 with patch.object(
                     vision_parser,
                     "_extract_text_from_pdf",
-                    return_value=[{"hash": "test_hash", "text": "Test", "word_count": 1}],
+                    return_value=[{"hash": "test_hash", "text": "Test", "annotated_text": "Test", "word_count": 1}],
                 ):
                     with patch.object(vision_parser, "_get_or_create_page_image"):
                         vision_parser.vision_model.process_image_async = AsyncMock(return_value="Cached content")
@@ -344,6 +345,7 @@ class TestVisionParserPDFProcessing:
                     {
                         "hash": "metadata_test_hash",
                         "text": "Test document content",
+                        "annotated_text": "Test document content",
                         "word_count": 15,
                     }
                 ],
@@ -591,7 +593,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "page_number": i + 1} for i in range(5)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "annotated_text": f"Page {i + 1} content", "page_number": i + 1} for i in range(5)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(
@@ -627,7 +629,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "page_number": i + 1} for i in range(10)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} content", "annotated_text": f"Page {i + 1} content", "page_number": i + 1} for i in range(10)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(return_value="Single page content")
@@ -680,7 +682,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "page_number": i + 1} for i in range(2)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "annotated_text": f"Page {i + 1}", "page_number": i + 1} for i in range(2)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(return_value="Content")
@@ -709,7 +711,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "page_number": i + 1} for i in range(5)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1}", "annotated_text": f"Page {i + 1}", "page_number": i + 1} for i in range(5)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(return_value="Content")
@@ -759,7 +761,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "page_number": i + 1} for i in range(3)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "annotated_text": f"Page {i + 1} text", "page_number": i + 1} for i in range(3)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(return_value="# Heading\n\nContent here")
@@ -800,7 +802,7 @@ class TestVisionParserPageIndexes:
                 vision_parser,
                 "_extract_text_from_pdf",
                 return_value=[
-                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "page_number": i + 1} for i in range(5)
+                    {"hash": f"hash_p{i + 1}", "text": f"Page {i + 1} text", "annotated_text": f"Page {i + 1} text", "page_number": i + 1} for i in range(5)
                 ],
             ):
                 vision_parser.vision_model.process_image_async = AsyncMock(

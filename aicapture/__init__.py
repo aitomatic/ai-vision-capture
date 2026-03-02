@@ -11,6 +11,7 @@ from aicapture.audio_transcriber import (
     TranscriptionSegment,
 )
 from aicapture.cache import FileCache, ImageCache, TwoLayerCache
+from aicapture.native_parser import NativePDFParser
 from aicapture.settings import ImageQuality
 from aicapture.vid_capture import VidCapture, VideoConfig, VideoValidationError
 from aicapture.vision_models import (
@@ -34,6 +35,8 @@ __license__ = "Apache License 2.0"
 __all__ = [
     # Main parser
     "VisionParser",
+    # Native parser
+    "NativePDFParser",
     # Vision models
     "VisionModel",
     "OpenAIVisionModel",

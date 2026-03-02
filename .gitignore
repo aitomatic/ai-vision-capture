@@ -178,3 +178,6 @@ tmp/
 .claude/
 CLAUDE.md
 experiments/
+
+# Parallax — stealth mode
+.parallax/

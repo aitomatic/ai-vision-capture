@@ -16,6 +16,7 @@ from PIL import Image
 
 from aicapture.cache import FileCache, HashUtils, ImageCache, TwoLayerCache
 from aicapture.content_cleaner import ContentCleaner
+from aicapture.native_parser import extract_page_with_formatting
 from aicapture.settings import MAX_CONCURRENT_TASKS, ImageQuality
 from aicapture.vision_models import VisionModel, create_default_vision_model
 
@@ -27,10 +28,16 @@ Text Content:
 - Include all numerical values, units, and technical specifications.
 - Provide complete content for every section.
 
+Text Formatting:
+- Detect and preserve underlined text by wrapping it in <underline></underline> XML tags.
+- If the reference text content below contains <underline> tags, use those as a guide for which text is underlined.
+- Example: <underline>原因　昭和44年10月28日手形取引契約同日設定</underline>
+
 Tables:
 - Convert to markdown table format with clear column headers.
 - Keep nested structure intact.
 - Include table title/caption and any reference numbers.
+- Preserve underline formatting within table cells using <underline> tags.
 
 Graphs & Charts:
 - Identify the visualization type (line graph, bar chart, scatter plot, etc.).
@@ -216,20 +223,33 @@ class VisionParser:
         """Extract text content and calculate page hashes from PDF using PyMuPDF.
 
         Returns:
-            List of dictionaries with 'text' and 'hash' for each page
+            List of dictionaries with 'text', 'annotated_text', 'hash', and
+            'page_number' for each page. The 'annotated_text' field contains
+            text with <underline> tags for underlined content detected via
+            PDF drawing analysis.
         """
         results = []
         with fitz.open(pdf_path) as doc:
             for page_idx, page in enumerate(doc):
-                # Extract text
-                text = page.get_text()
+                # Use page.get_text() for hashing — this must stay stable across
+                # releases to avoid invalidating existing caches.
+                raw_text = page.get_text()
 
-                # Calculate page hash based on file hash, page number and text content
+                # Extract formatting-annotated text with <underline> tags.
+                # This calls get_text("dict") internally for span-level analysis.
+                annotated_text, _plain = extract_page_with_formatting(page)
+
+                # Calculate page hash based on raw text (not annotated, for cache stability)
                 page_number = page_idx + 1
-                page_text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+                page_text_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()[:16]
                 page_hash = f"p{page_number}_{page_text_hash}"
 
-                results.append({"text": text, "hash": page_hash, "page_number": page_number})
+                results.append({
+                    "text": raw_text,
+                    "annotated_text": annotated_text,
+                    "hash": page_hash,
+                    "page_number": page_number,
+                })
         return results
 
     def _make_user_message(self, text_content: str) -> str:
@@ -238,11 +258,21 @@ class VisionParser:
         Only includes the PyMuPDF text reference when actual text was extracted.
         Sending an empty <text_content> block can confuse some models (e.g. Gemini)
         and contribute to content filter triggers.
+
+        The text_content may contain <underline> tags from native PDF formatting
+        detection. These guide the VLM to preserve underline formatting in output.
         """
         if text_content and text_content.strip():
+            has_underlines = "<underline>" in text_content
+            underline_note = (
+                " Text wrapped in <underline> tags indicates underlined formatting detected in the PDF — "
+                "preserve these tags in your output."
+                if has_underlines
+                else ""
+            )
             return (
                 f"{self.prompt}\n\n"
-                f"Text content extracted from this page by using PyMuPDF, use this for reference and improve accuracy:\n"
+                f"Text content extracted from this page by using PyMuPDF, use this for reference and improve accuracy.{underline_note}\n"
                 f"<text_content>\n{text_content}\n</text_content>"
             )
         return self.prompt
@@ -426,7 +456,7 @@ class VisionParser:
             # Get page info with text and hash
             page_info = page_extractions[page_idx]
             page_hash = page_info["hash"]
-            text_content = page_info["text"]
+            text_content = page_info["annotated_text"]
 
             # Get the page image from cache or generate it
             img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
@@ -505,7 +535,7 @@ class VisionParser:
             # Get page info with text and hash
             page_info = page_extractions[page_idx]
             page_hash = page_info["hash"]
-            text_content = page_info["text"]
+            text_content = page_info["annotated_text"]
 
             # Get the page image from cache or generate it
             img = await self._get_or_create_page_image(doc, page_idx, page_hash, file_hash)
