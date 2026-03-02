@@ -76,7 +76,7 @@ class TestUnderlineDetection:
 
         # Table header "権利部" should NOT be underlined
         lines = content.split("\n")
-        header_lines = [l for l in lines if "権利部" in l]
+        header_lines = [line for line in lines if "権利部" in line]
         for hl in header_lines:
             assert "<underline>" not in hl
 
