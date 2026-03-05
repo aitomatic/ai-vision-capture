@@ -623,8 +623,9 @@ class VisionParser:
 
             # Include page_indexes in cache key when filtering pages
             if page_indexes is not None:
-                pages_suffix = "_pages_" + "_".join(str(i) for i in selected_pages)
-                cache_key = cache_key + pages_suffix
+                pages_str = "_".join(str(i) for i in selected_pages)
+                pages_hash = hashlib.sha256(pages_str.encode()).hexdigest()[:16]
+                cache_key = cache_key + f"_pages_{pages_hash}"
 
             # Check cache unless invalidate_cache is True
             # Fall back to file_hash key for backwards compatibility with older cache formats
